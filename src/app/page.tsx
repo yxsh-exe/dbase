@@ -1,103 +1,223 @@
+import Link from "next/link";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, Check, Network, Shapes, DownloadCloud, Quote } from "lucide-react";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="relative min-h-[100svh] overflow-hidden">
+      {/* Background */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(60rem_60rem_at_50%_-10%,_oklch(0.2_0_0/_0.9),_transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(40rem_40rem_at_120%_20%,_oklch(0.35_0.08_260/_0.3),_transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(40rem_40rem_at_-20%_80%,_oklch(0.35_0.08_20/_0.25),_transparent_60%)]" />
+        <div className="absolute inset-0 opacity-[0.08] [mask-image:radial-gradient(50%_50%_at_50%_50%,_black,transparent)]" style={{ backgroundImage: "linear-gradient(to_right,rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,.12)_1px,transparent_1px)", backgroundSize: "32px 32px" }} />
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Nav */}
+      <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6">
+        <div className="flex items-center gap-3">
+          <div className="size-8 rounded-md bg-primary/20 ring-1 ring-primary/30" />
+          <span className="text-sm font-semibold tracking-wide text-muted-foreground">Modeler</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <div className="flex items-center gap-3">
+          <Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Projects</Link>
+          <Link href="/projects">
+            <Button size="sm" className="gap-1">
+              Get started
+              <ArrowRight className="size-4" />
+            </Button>
+          </Link>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 pt-10 md:pt-16 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1 text-xs text-muted-foreground">
+          Visual data modeling for modern teams
+        </div>
+        <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
+          Design database schemas visually. Export with confidence.
+        </h1>
+        <p className="mt-5 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
+          Drag-and-drop tables, define relationships, and generate SQL instantly. Collaborate and iterate without getting lost in migration scripts.
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
+          <Link href="/projects">
+            <Button className="h-11 px-6">Open Modeler</Button>
+          </Link>
+          <Link href="#features">
+            <Button variant="outline" className="h-11 px-6">Learn more</Button>
+          </Link>
+        </div>
+
+        {/* Mock preview */}
+        <div className="mt-14 w-full">
+          <div className="mx-auto w-full overflow-hidden rounded-xl border border-border bg-card/50 shadow-2xl ring-1 ring-black/5 backdrop-blur-md">
+            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2">
+              <div className="size-3 rounded-full bg-red-500/80" />
+              <div className="size-3 rounded-full bg-yellow-500/80" />
+              <div className="size-3 rounded-full bg-green-500/80" />
+            </div>
+            <div className="grid grid-cols-12 gap-4 px-4 py-6 md:px-8 md:py-8">
+              <div className="col-span-12 md:col-span-7">
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-background/40 p-4">
+                      <div className="h-4 w-24 rounded bg-foreground/15" />
+                      <div className="mt-3 space-y-2">
+                        <div className="h-3 w-5/6 rounded bg-foreground/10" />
+                        <div className="h-3 w-4/6 rounded bg-foreground/10" />
+                        <div className="h-3 w-3/6 rounded bg-foreground/10" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-12 md:col-span-5">
+                <div className="rounded-lg border border-border bg-background/40 p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="size-8 rounded-md bg-primary/20" />
+                    <div className="h-4 w-40 rounded bg-foreground/15" />
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="h-3 w-full rounded bg-foreground/10" />
+                    <div className="h-3 w-5/6 rounded bg-foreground/10" />
+                    <div className="h-3 w-4/6 rounded bg-foreground/10" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Logos */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-12">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Trusted by teams at</p>
+          <div className="flex flex-wrap items-center justify-center gap-6 opacity-80 [filter:grayscale(1)] hover:opacity-100 hover:[filter:grayscale(0)] transition">
+            <Image src="/vercel.svg" alt="Vercel" width={90} height={20} className="opacity-70" />
+            <Image src="/next.svg" alt="Next.js" width={80} height={20} className="opacity-70" />
+            <Image src="/globe.svg" alt="Globe" width={80} height={20} className="opacity-70" />
+            <Image src="/window.svg" alt="Window" width={80} height={20} className="opacity-70" />
+            <Image src="/file.svg" alt="File" width={80} height={20} className="opacity-70" />
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="mx-auto w-full max-w-6xl px-6 py-20">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <Feature icon={<Network className="size-5" />} title="Visual relations" description="Define one-to-one, one-to-many, and many-to-many with interactive linking." />
+          <Feature icon={<Shapes className="size-5" />} title="Rich field types" description="Choose from common SQL types with sensible defaults and constraints." />
+          <Feature icon={<DownloadCloud className="size-5" />} title="Export ready" description="Generate SQL from your model and bring it straight to your database." />
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="mx-auto w-full max-w-6xl px-6 pb-10">
+        <h2 className="text-center text-2xl font-semibold md:text-3xl">How it works</h2>
+        <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+          <Step number={1} title="Create tables" description="Add tables and fields with sensible defaults, constraints, and types." />
+          <Step number={2} title="Link relations" description="Connect tables with relations and visualize cardinality instantly." />
+          <Step number={3} title="Export SQL" description="Convert your schema to SQL and use it directly in your database." />
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <Testimonial
+            quote="I modeled our MVP in an afternoon. The SQL export matched perfectly."
+            author="Ava Thompson"
+            role="Founding Engineer"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <Testimonial
+            quote="The visual relations helped onboard the team fast. Less time in docs, more time building."
+            author="Diego Martinez"
+            role="Tech Lead"
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <Testimonial
+            quote="It feels like Figma for database schemas. Simple, fast, and reliable."
+            author="Priya Singh"
+            role="Product Engineer"
           />
-          Go to nextjs.org →
-        </a>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="mx-auto w-full max-w-5xl px-6 pb-24 text-center">
+        <div className="rounded-2xl border border-border bg-card/40 px-6 py-10 md:px-10 md:py-14">
+          <h2 className="text-balance text-2xl font-semibold md:text-3xl">Start modeling in minutes</h2>
+          <p className="mt-2 text-muted-foreground">No setup required. Create your first project and design together.</p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link href="/projects">
+              <Button className="h-11 px-6">
+                Create project
+                <ArrowRight className="ml-1 size-4" />
+              </Button>
+            </Link>
+            <Link href="#features">
+              <Button variant="outline" className="h-11 px-6">See features</Button>
+            </Link>
+          </div>
+          <ul className="mx-auto mt-6 flex max-w-md flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <li className="inline-flex items-center gap-1"><Check className="size-3" /> No credit card</li>
+            <li className="inline-flex items-center gap-1"><Check className="size-3" /> Fast & lightweight</li>
+            <li className="inline-flex items-center gap-1"><Check className="size-3" /> Open export</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer className="mx-auto w-full max-w-7xl px-6 pb-10">
+        <div className="flex items-center justify-between border-t border-border pt-6 text-xs text-muted-foreground">
+          <span>© {new Date().getFullYear()} Modeler</span>
+          <span>Built with Next.js</span>
+        </div>
       </footer>
+    </main>
+  );
+}
+
+function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card/40 p-5">
+      <div className="inline-flex items-center justify-center rounded-md border border-border bg-background/40 p-2 text-primary">
+        {icon}
+      </div>
+      <h3 className="mt-4 text-base font-semibold">{title}</h3>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
     </div>
+  );
+}
+
+function Step({ number, title, description }: { number: number; title: string; description: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card/40 p-5">
+      <div className="inline-flex size-8 items-center justify-center rounded-md bg-primary/15 text-sm font-semibold text-primary ring-1 ring-primary/30">
+        {number}
+      </div>
+      <h3 className="mt-4 text-base font-semibold">{title}</h3>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function Testimonial({ quote, author, role }: { quote: string; author: string; role: string }) {
+  return (
+    <figure className="rounded-xl border border-border bg-card/40 p-5">
+      <Quote className="size-5 text-primary" />
+      <blockquote className="mt-3 text-sm text-muted-foreground">{quote}</blockquote>
+      <figcaption className="mt-4 flex items-center gap-3">
+        <div className="flex size-8 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/30">
+          {author.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+        </div>
+        <div>
+          <div className="text-sm font-medium">{author}</div>
+          <div className="text-xs text-muted-foreground">{role}</div>
+        </div>
+      </figcaption>
+    </figure>
   );
 }

@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Adjust based on your database (e.g., mysql, sqlite)
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String    @id @default(uuid())
+  email      String    @unique
+  name       String?
+  createdAt  DateTime  @default(now())
+  projects   Project[] @relation("user_projects")
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  schema      Json      // Stores {nodes: Node[], edges: Edge[]}
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt // Auto-update timestamp
+  description String?
+  type        String?   // RELATIONAL, NOSQL, or HYBRID
+  userId      String
+  user        User      @relation("user_projects", fields: [userId], references: [id])
+
+  @@index([userId], name: "idx_user_id")
+}
