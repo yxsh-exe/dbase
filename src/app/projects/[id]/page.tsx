@@ -30,10 +30,12 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+import vscDarkPlus from "react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus"
+import dracula from "react-syntax-highlighter/dist/esm/styles/prism/dracula"
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql"
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"
 
 import type { Edge, Node } from "@xyflow/react"
 import type { TableNodeData } from "@/components/editor/nodes/types/Field"
@@ -118,11 +120,12 @@ export default function ProjectPage({ params }: PageProps) {
 
     const handleDownloadExport = () => {
         const ext = exportFormat === "sql" ? "sql" : exportFormat === "prisma" ? "prisma" : "ts"
+        const base = exportFormat === "prisma" ? "schema" : exportFormat === "drizzle" ? "schema.drizzle" : "schema"
         const blob = new Blob([exportCode], { type: "text/plain;charset=utf-8" })
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
         a.href = url
-        a.download = `${project?.name ?? "schema"}.${ext}`
+        a.download = `${project?.name ?? base}.${ext}`
         a.click()
         URL.revokeObjectURL(url)
     }
@@ -251,16 +254,25 @@ export default function ProjectPage({ params }: PageProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Link href={`/projects/${project.id}/editor`}>
-                                    <Button>
-                                        <Edit3 /> Open editor
-                                    </Button>
-                                </Link>
-                            </TooltipTrigger>
-                            <TooltipContent>Start modeling</TooltipContent>
-                        </Tooltip>
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <Button>
+                                    <Edit3 /> Log in to edit
+                                </Button>
+                            </SignInButton>
+                        </SignedOut>
+                        <SignedIn>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Link href={`/projects/${project.id}/editor`}>
+                                        <Button>
+                                            <Edit3 /> Open editor
+                                        </Button>
+                                    </Link>
+                                </TooltipTrigger>
+                                <TooltipContent>Start modeling</TooltipContent>
+                            </Tooltip>
+                        </SignedIn>
                         <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="destructive">
@@ -347,7 +359,7 @@ export default function ProjectPage({ params }: PageProps) {
                                 <div className="mt-3 rounded-md border bg-background overflow-hidden">
                                     <SyntaxHighlighter
                                         language="typescript"
-                                        style={vscDarkPlus}
+                                        style={dracula}
                                         wrapLongLines
                                         customStyle={{ background: "transparent", margin: 0, padding: 16, fontSize: 13, lineHeight: 1.7 }}
                                         codeTagProps={{
@@ -365,7 +377,7 @@ export default function ProjectPage({ params }: PageProps) {
                                 <div className="mt-3 rounded-md border bg-background overflow-hidden">
                                     <SyntaxHighlighter
                                         language="typescript"
-                                        style={vscDarkPlus}
+                                        style={dracula}
                                         wrapLongLines
                                         customStyle={{ background: "transparent", margin: 0, padding: 16, fontSize: 13, lineHeight: 1.7 }}
                                         codeTagProps={{

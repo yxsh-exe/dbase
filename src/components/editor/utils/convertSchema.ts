@@ -38,7 +38,7 @@ function mapDbTypeToDrizzle(dbType: string): string {
   return 'text';
 }
 
-export function generateSql(nodes: Node<TableNodeData>[], edges: Edge[]): string {
+export function generateSql(nodes: Node<TableNodeData>[]): string {
   const statements: string[] = [];
 
   for (const node of nodes) {
@@ -87,8 +87,18 @@ export function generateSql(nodes: Node<TableNodeData>[], edges: Edge[]): string
   return statements.join('\n\n');
 }
 
-export function generatePrisma(nodes: Node<TableNodeData>[], edges: Edge[]): string {
-  const lines: string[] = [];
+export function generatePrisma(nodes: Node<TableNodeData>[]): string {
+  const header = `generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+`;
+  const lines: string[] = [header];
   for (const node of nodes) {
     const modelName = toPascalCase(node.data.name);
     lines.push(`model ${modelName} {`);
@@ -112,7 +122,9 @@ export function generatePrisma(nodes: Node<TableNodeData>[], edges: Edge[]): str
         const fkField = field.name;
         const refField = field.referencedField ?? 'id';
         lines.push(
-          `  ${toCamelCase(relatedModel)} ${relatedModel}? @relation(fields: [${fkField}], references: [${refField}])`
+          `  ${toCamelCase(
+            relatedModel,
+          )} ${relatedModel}? @relation(fields: [${fkField}], references: [${refField}])`,
         );
       }
     }
@@ -122,9 +134,19 @@ export function generatePrisma(nodes: Node<TableNodeData>[], edges: Edge[]): str
   return lines.join('\n');
 }
 
-export function generateDrizzle(nodes: Node<TableNodeData>[], edges: Edge[]): string {
-  const imports = `import { pgTable, integer, bigint, text, boolean, uuid, date, timestamp } from 'drizzle-orm/pg-core'`;
-  const blocks: string[] = [imports, ''];
+export function generateDrizzle(nodes: Node<TableNodeData>[]): string {
+  const prelude = [
+    `import { drizzle } from 'drizzle-orm/node-postgres'`,
+    `import { Client } from 'pg'`,
+    `import { pgTable, integer, bigint, text, boolean, uuid, date, timestamp } from 'drizzle-orm/pg-core'`,
+    '',
+    '// Example connection (uncomment and configure as needed):',
+    '// const client = new Client({ connectionString: process.env.DATABASE_URL })',
+    '// await client.connect()',
+    '// export const db = drizzle(client)',
+    '',
+  ].join('\n');
+  const blocks: string[] = [prelude];
 
   for (const node of nodes) {
     const tableConst = toCamelCase(node.data.name);
@@ -147,7 +169,9 @@ export function generateDrizzle(nodes: Node<TableNodeData>[], edges: Edge[]): st
       columnLines.push(`  ${field.name}: ${parts.join('')},`);
     }
 
-    blocks.push(`export const ${tableConst} = pgTable('${tableName}', {\n${columnLines.join('\n')}\n});\n`);
+    blocks.push(
+      `export const ${tableConst} = pgTable('${tableName}', {\n${columnLines.join('\n')}\n});\n`,
+    );
   }
 
   return blocks.join('\n');
@@ -156,18 +180,16 @@ export function generateDrizzle(nodes: Node<TableNodeData>[], edges: Edge[]): st
 export function convertSchema(
   nodes: Node<TableNodeData>[],
   edges: Edge[],
-  format: SchemaFormat
+  format: SchemaFormat,
 ): string {
   switch (format) {
     case 'sql':
-      return generateSql(nodes, edges);
+      return generateSql(nodes);
     case 'prisma':
-      return generatePrisma(nodes, edges);
+      return generatePrisma(nodes);
     case 'drizzle':
-      return generateDrizzle(nodes, edges);
+      return generateDrizzle(nodes);
     default:
       return '';
   }
 }
-
-

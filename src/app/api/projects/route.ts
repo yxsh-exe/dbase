@@ -1,8 +1,14 @@
 import { NextRequest } from 'next/server';
 import prisma from '../../../lib/prisma';
+import { getOrCreateUser } from '../../../lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getOrCreateUser();
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, schema, description, type } = body as {
       name: string;
@@ -13,17 +19,6 @@ export async function POST(request: NextRequest) {
 
     if (!name || typeof name !== 'string') {
       return Response.json({ error: 'Name is required' }, { status: 400 });
-    }
-
-    // Get or create a default user
-    let user = await prisma.user.findFirst();
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: 'default@example.com',
-          name: 'Default User',
-        },
-      });
     }
 
     const project = await prisma.project.create({
@@ -38,21 +33,25 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json(project, { status: 201 });
-  } catch (err) {
-    console.error(err);
+  } catch {
     return Response.json({ error: 'Something went wrong.' }, { status: 500 });
   }
 }
 
 export async function GET() {
   try {
+    const user = await getOrCreateUser();
+    if (!user) {
+      return Response.json([], { status: 200 });
+    }
+
     const projects = await prisma.project.findMany({
+      where: { userId: user.id },
       orderBy: { updatedAt: 'desc' },
       include: { user: true },
     });
     return Response.json(projects);
-  } catch (err) {
-    console.error(err);
+  } catch {
     return Response.json({ error: 'Something went wrong.' }, { status: 500 });
   }
 }

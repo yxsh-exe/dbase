@@ -41,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"
 
 interface ProjectUser {
     name?: string | null
@@ -198,32 +199,39 @@ export default function ProjectsPage() {
                                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
                                 <p className="text-muted-foreground mt-1">Design, organize, and collaborate on your data models.</p>
                             </div>
-                            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                                <DialogTrigger asChild>
-                                    <Button size="lg">
-                                        <Plus /> New project
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Create a new project</DialogTitle>
-                                        <DialogDescription>Give your project a clear, descriptive name.</DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-2">
-                                        <label className="text-sm">Project name</label>
-                                        <Input
-                                            autoFocus
-                                            value={newProjectName}
-                                            onChange={(e) => setNewProjectName(e.target.value)}
-                                            placeholder="e.g. E‑commerce database"
-                                        />
-                                    </div>
-                                    <DialogFooter>
-                                        <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                                        <Button onClick={() => void handleCreateProject()}>Create</Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
+                            <SignedOut>
+                                <SignInButton mode="modal">
+                                    <Button size="lg">Log in to create</Button>
+                                </SignInButton>
+                            </SignedOut>
+                            <SignedIn>
+                                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button size="lg">
+                                            <Plus /> New project
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Create a new project</DialogTitle>
+                                            <DialogDescription>Give your project a clear, descriptive name.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-2">
+                                            <label className="text-sm">Project name</label>
+                                            <Input
+                                                autoFocus
+                                                value={newProjectName}
+                                                onChange={(e) => setNewProjectName(e.target.value)}
+                                                placeholder="e.g. E‑commerce database"
+                                            />
+                                        </div>
+                                        <DialogFooter>
+                                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                                            <Button onClick={() => void handleCreateProject()}>Create</Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            </SignedIn>
                         </div>
                     </div>
 

@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Check, Network, Shapes, DownloadCloud, Quote } from "lucide-react";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 
 export default function HomePage() {
   return (
@@ -16,18 +18,31 @@ export default function HomePage() {
 
       {/* Nav */}
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6">
+        <Link href="/" className="flex items-center gap-3">
+          {/* <div className="size-8 rounded-md bg-primary/20 ring-1 ring-primary/30" /> */}
+          <span className="text-2xl font-bold tracking-wide ">DBase</span>
+        </Link>
         <div className="flex items-center gap-3">
-          <div className="size-8 rounded-md bg-primary/20 ring-1 ring-primary/30" />
-          <span className="text-sm font-semibold tracking-wide text-muted-foreground">Modeler</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Projects</Link>
-          <Link href="/projects">
-            <Button size="sm" className="gap-1">
-              Get started
-              <ArrowRight className="size-4" />
-            </Button>
-          </Link>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <Button variant="outline" size="sm">Log in</Button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <Button size="sm" className="gap-1">
+                Get started
+                <ArrowRight className="size-4" />
+              </Button>
+            </SignUpButton>
+          </SignedOut>
+          <SignedIn>
+            <Link href="/projects">
+              <Button size="sm" className="gap-1">
+                Open app
+                <ArrowRight className="size-4" />
+              </Button>
+            </Link>
+            <UserButton appearance={{ elements: { userButtonAvatarBox: "size-8" } }} />
+          </SignedIn>
         </div>
       </header>
 
@@ -44,7 +59,7 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
           <Link href="/projects">
-            <Button className="h-11 px-6">Open Modeler</Button>
+            <Button className="h-11 px-6">Open DBase</Button>
           </Link>
           <Link href="#features">
             <Button variant="outline" className="h-11 px-6">Learn more</Button>
@@ -172,7 +187,7 @@ export default function HomePage() {
 
       <footer className="mx-auto w-full max-w-7xl px-6 pb-10">
         <div className="flex items-center justify-between border-t border-border pt-6 text-xs text-muted-foreground">
-          <span>© {new Date().getFullYear()} Modeler</span>
+          <span>© {new Date().getFullYear()} DBase</span>
           <span>Built with Next.js</span>
         </div>
       </footer>

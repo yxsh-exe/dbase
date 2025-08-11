@@ -17,12 +17,14 @@ import {
 import { toast } from 'react-hot-toast';
 import '@xyflow/react/dist/style.css';
 import { Database, Plus, Save } from 'lucide-react';
+import Link from 'next/link';
 import { TableNode } from '@/components/editor/nodes/TableNode';
 import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
 import { AddTableDrawer } from '@/components/editor/AddTableDrawer';
 import { Key, Hash, Fingerprint, Diamond } from 'lucide-react';
 import { EditorSidebar } from '@/components/editor/Sidebar';
 import { SidebarProvider, Sidebar as ShadcnSidebar, SidebarInset } from '@/components/ui/sidebar';
+import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 
 const nodeTypes = {
     table: TableNode,
@@ -523,10 +525,10 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             <SidebarInset className="bg-zinc-950 text-zinc-100 font-mono">
                 <header className="sticky top-0 mx-4 mt-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 z-20 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
+                        <Link href="/" className="flex items-center gap-2 hover:opacity-90">
                             <Database className="h-6 w-6 text-white" />
-                            <h1 className="text-2xl font-bold">Modeler</h1>
-                        </div>
+                            <span className="text-2xl font-bold">DBase</span>
+                        </Link>
                         <div className="text-sm text-zinc-300 flex gap-6 font-medium">
                             <span className="uppercase tracking-wide">{nodes.length} Table{nodes.length !== 1 ? 's' : ''}</span>
                             <span className="uppercase tracking-wide">{edges.length} Reference{edges.length !== 1 ? 's' : ''}</span>
@@ -540,13 +542,23 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <Plus className="h-4 w-4" />
                             Add Table
                         </button>
-                        <button
-                            onClick={handleSave}
-                            className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
-                        >
-                            <Save className="h-4 w-4" />
-                            Save Schema
-                        </button>
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <button className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors">
+                                    <Save className="h-4 w-4" />
+                                    Log in to save
+                                </button>
+                            </SignInButton>
+                        </SignedOut>
+                        <SignedIn>
+                            <button
+                                onClick={handleSave}
+                                className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
+                            >
+                                <Save className="h-4 w-4" />
+                                Save Schema
+                            </button>
+                        </SignedIn>
                     </div>
                 </header>
                 <div className="flex-1 relative">

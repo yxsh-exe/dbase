@@ -25,17 +25,17 @@ declare module 'react-syntax-highlighter' {
 }
 
 declare module 'react-syntax-highlighter/dist/esm/styles/prism' {
-  export const vscDarkPlus: any;
-  const styles: any;
+  export const vscDarkPlus: unknown;
+  const styles: unknown;
   export default styles;
 }
 
 declare module 'react-syntax-highlighter/dist/esm/languages/prism/sql' {
-  const lang: any;
+  const lang: unknown;
   export default lang;
 }
 
 declare module 'react-syntax-highlighter/dist/esm/languages/prism/typescript' {
-  const lang: any;
+  const lang: unknown;
   export default lang;
 }

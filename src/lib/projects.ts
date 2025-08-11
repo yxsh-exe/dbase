@@ -5,7 +5,7 @@ export interface ProjectUser {
   email?: string | null;
 }
 
-export interface Project<TSchema = any> {
+export interface Project<TSchema = unknown> {
   id: string;
   name: string;
   description?: string | null;

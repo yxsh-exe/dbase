@@ -3,28 +3,29 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // Adjust based on your database (e.g., mysql, sqlite)
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id         String    @id @default(uuid())
-  email      String    @unique
-  name       String?
-  createdAt  DateTime  @default(now())
-  projects   Project[] @relation("user_projects")
+  id        String    @id @default(uuid())
+  clerkId   String?   @unique
+  email     String    @unique
+  name      String?
+  createdAt DateTime  @default(now())
+  projects  Project[] @relation("user_projects")
 }
 
 model Project {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
-  schema      Json      // Stores {nodes: Node[], edges: Edge[]}
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt // Auto-update timestamp
+  schema      Json
+  createdAt   DateTime @default(now())
   description String?
-  type        String?   // RELATIONAL, NOSQL, or HYBRID
+  type        String?
+  updatedAt   DateTime @updatedAt
   userId      String
-  user        User      @relation("user_projects", fields: [userId], references: [id])
+  user        User     @relation("user_projects", fields: [userId], references: [id])
 
-  @@index([userId], name: "idx_user_id")
+  @@index([userId], map: "idx_user_id")
 }

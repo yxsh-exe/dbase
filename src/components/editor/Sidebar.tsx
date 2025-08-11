@@ -15,7 +15,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { Table, GitBranch, Code, ArrowLeft, Copy, Download, Search, WrapText, Trash2 } from 'lucide-react';
+import { Table, GitBranch, Code, ArrowLeft, Copy, Download, Search, Trash2, Check } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -26,9 +26,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import vscDarkPlus from 'react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus';
+import dracula from 'react-syntax-highlighter/dist/esm/styles/prism/dracula';
 import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
 
@@ -52,9 +52,16 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
     const [activeTab, setActiveTab] = useState<'tables' | 'connections' | 'preview'>('tables');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [tableQuery, setTableQuery] = useState('');
-    const [wrapPreview, setWrapPreview] = useState(true);
+    const [copied, setCopied] = useState(false);
+    // Wrap is always on; UI toggle removed
 
     const preview = useMemo(() => convertSchema(nodes, edges, format), [nodes, edges, format]);
+
+    const handleCopy = async () => {
+        await navigator.clipboard.writeText(preview || '');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     return (
         <>
@@ -248,20 +255,15 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
                                                     </SelectContent>
                                                 </Select>
 
-                                                <div className="ml-auto flex items-center gap-2">
-                                                    <div className="flex items-center gap-2 text-xs text-zinc-400">
-                                                        <Checkbox id="wrap" checked={wrapPreview} onCheckedChange={(v) => setWrapPreview(Boolean(v))} />
-                                                        <label htmlFor="wrap" className="flex items-center gap-1 cursor-pointer">
-                                                            <WrapText className="h-3.5 w-3.5" /> Wrap
-                                                        </label>
-                                                    </div>
+                                                <div className="ml-auto flex items-center gap-2 ">
                                                     <Button
                                                         size="sm"
                                                         variant="secondary"
-                                                        onClick={() => navigator.clipboard.writeText(preview || '')}
+                                                        className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200"
+                                                        onClick={handleCopy}
                                                         disabled={!preview}
                                                     >
-                                                        <Copy className="h-4 w-4 mr-1" /> Copy
+                                                        {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />} Copy
                                                     </Button>
                                                     <Button
                                                         size="sm"
@@ -270,9 +272,10 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
                                                             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                                                             const url = URL.createObjectURL(blob);
                                                             const a = document.createElement('a');
-                                                            const ext = format === 'prisma' ? 'prisma' : 'sql';
+                                                            const ext = format === 'prisma' ? 'prisma' : format === 'drizzle' ? 'ts' : 'sql';
+                                                            const base = format === 'prisma' ? 'schema' : format === 'drizzle' ? 'schema.drizzle' : 'schema';
                                                             a.href = url;
-                                                            a.download = `schema.${ext}`;
+                                                            a.download = `${base}.${ext}`;
                                                             document.body.appendChild(a);
                                                             a.click();
                                                             document.body.removeChild(a);
@@ -287,8 +290,8 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
                                             <div className="bg-zinc-950/60 border border-zinc-800 rounded w-full flex-1 min-h-0 overflow-auto overflow-x-auto min-w-0">
                                                 <SyntaxHighlighter
                                                     language={format === 'sql' ? 'sql' : 'typescript'}
-                                                    style={vscDarkPlus}
-                                                    wrapLongLines={wrapPreview}
+                                                    style={format === 'sql' ? vscDarkPlus : dracula}
+                                                    wrapLongLines
                                                     customStyle={{
                                                         background: 'transparent',
                                                         margin: 0,
