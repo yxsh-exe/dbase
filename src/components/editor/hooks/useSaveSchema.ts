@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Edge, Node } from '@xyflow/react';
-import { TableNodeData } from '../types/schema';
+import { TableNodeData } from '../nodes/types/Field';
 
 export function useSaveSchema(projectId: string) {
   const saveSchema = useCallback(
