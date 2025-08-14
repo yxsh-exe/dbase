@@ -1,9 +1,7 @@
-import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Check, Network, Shapes, DownloadCloud, Quote } from "lucide-react";
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { ArrowRight, Check, Code2, Database, DownloadCloud, GitBranch, Network, Shapes, Shield, Users, Zap } from "lucide-react";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -107,16 +105,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Logos */}
+      {/* Stats */}
       <section className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Trusted by teams at</p>
-          <div className="flex flex-wrap items-center justify-center gap-6 opacity-80 [filter:grayscale(1)] hover:opacity-100 hover:[filter:grayscale(0)] transition">
-            <Image src="/vercel.svg" alt="Vercel" width={90} height={20} className="opacity-70" />
-            <Image src="/next.svg" alt="Next.js" width={80} height={20} className="opacity-70" />
-            <Image src="/globe.svg" alt="Globe" width={80} height={20} className="opacity-70" />
-            <Image src="/window.svg" alt="Window" width={80} height={20} className="opacity-70" />
-            <Image src="/file.svg" alt="File" width={80} height={20} className="opacity-70" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-foreground md:text-3xl">10K+</div>
+            <div className="text-xs text-muted-foreground">Schemas created</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-foreground md:text-3xl">500+</div>
+            <div className="text-xs text-muted-foreground">Teams onboard</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-foreground md:text-3xl">50M+</div>
+            <div className="text-xs text-muted-foreground">Tables designed</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-foreground md:text-3xl">99.9%</div>
+            <div className="text-xs text-muted-foreground">Uptime</div>
           </div>
         </div>
       </section>
@@ -140,23 +146,42 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Advanced Features */}
       <section className="mx-auto w-full max-w-6xl px-6 py-16">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <Testimonial
-            quote="I modeled our MVP in an afternoon. The SQL export matched perfectly."
-            author="Ava Thompson"
-            role="Founding Engineer"
+        <div className="text-center mb-12">
+          <h2 className="text-2xl font-semibold md:text-3xl">Built for scale and collaboration</h2>
+          <p className="mt-2 text-muted-foreground">Enterprise-grade features that grow with your team</p>
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <AdvancedFeature
+            icon={<Database className="size-5" />}
+            title="Multi-database support"
+            description="PostgreSQL, MySQL, SQLite - export to any database with optimized schemas."
           />
-          <Testimonial
-            quote="The visual relations helped onboard the team fast. Less time in docs, more time building."
-            author="Diego Martinez"
-            role="Tech Lead"
+          <AdvancedFeature
+            icon={<GitBranch className="size-5" />}
+            title="Version control"
+            description="Track schema changes with built-in versioning and rollback capabilities."
           />
-          <Testimonial
-            quote="It feels like Figma for database schemas. Simple, fast, and reliable."
-            author="Priya Singh"
-            role="Product Engineer"
+          <AdvancedFeature
+            icon={<Users className="size-5" />}
+            title="Real-time collaboration"
+            description="Work together with live cursors, comments, and instant synchronization."
+          />
+          <AdvancedFeature
+            icon={<Shield className="size-5" />}
+            title="Enterprise security"
+            description="SOC2 compliant with SSO, role-based access, and audit logs."
+          />
+          <AdvancedFeature
+            icon={<Code2 className="size-5" />}
+            title="API integration"
+            description="Programmatic access to your schemas with REST and GraphQL APIs."
+          />
+          <AdvancedFeature
+            icon={<Zap className="size-5" />}
+            title="Lightning fast"
+            description="Sub-second loading with intelligent caching and edge distribution."
           />
         </div>
       </section>
@@ -219,20 +244,14 @@ function Step({ number, title, description }: { number: number; title: string; d
   );
 }
 
-function Testimonial({ quote, author, role }: { quote: string; author: string; role: string }) {
+function AdvancedFeature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <figure className="rounded-xl border border-border bg-card/40 p-5">
-      <Quote className="size-5 text-primary" />
-      <blockquote className="mt-3 text-sm text-muted-foreground">{quote}</blockquote>
-      <figcaption className="mt-4 flex items-center gap-3">
-        <div className="flex size-8 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/30">
-          {author.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-        </div>
-        <div>
-          <div className="text-sm font-medium">{author}</div>
-          <div className="text-xs text-muted-foreground">{role}</div>
-        </div>
-      </figcaption>
-    </figure>
+    <div className="group rounded-xl border border-border bg-card/40 p-5 transition-all hover:bg-card/60 hover:shadow-md">
+      <div className="inline-flex items-center justify-center rounded-md border border-border bg-background/40 p-2 text-primary group-hover:bg-primary/10 transition-colors">
+        {icon}
+      </div>
+      <h3 className="mt-4 text-base font-semibold">{title}</h3>
+      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</p>
+    </div>
   );
 }

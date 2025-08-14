@@ -10,23 +10,37 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Edit2, LinkIcon, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { FieldDialog } from "./nodes/FieldDialog";
-import { Field } from "./nodes/types/Field";
+import { ForeignKeyDialog } from "./nodes/ForeignKeyDialog";
+import { Field, TableNodeData } from "./nodes/types/Field";
+import { ConstraintSelector, legacyFormatToConstraints, constraintsToLegacyFormat } from "./nodes/ConstraintSelector";
+import { DataTypeSelector } from "./nodes/DataTypeSelector";
+import type { Node } from '@xyflow/react';
+
+interface ForeignKeyRelation {
+    fieldName: string;
+    referencedTable: string;
+    referencedField: string;
+}
 
 interface AddTableDrawerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onCreate: (table: { name: string; fields: Field[] }) => void;
+    onCreate: (table: { name: string; fields: Field[]; foreignKeys?: ForeignKeyRelation[] }) => void;
+    availableTables?: Node<TableNodeData>[];
 }
 
-export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerProps) {
+export function AddTableDrawer({ open, onOpenChange, onCreate, availableTables = [] }: AddTableDrawerProps) {
     const [tableName, setTableName] = useState<string>("");
     const [fields, setFields] = useState<Field[]>([]);
+    const [foreignKeys, setForeignKeys] = useState<ForeignKeyRelation[]>([]);
     const [showFieldDialog, setShowFieldDialog] = useState(false);
+    const [showForeignKeyDialog, setShowForeignKeyDialog] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editingForeignKeyIndex, setEditingForeignKeyIndex] = useState<number | null>(null);
 
     // Seed default id field on first open
     useEffect(() => {
@@ -42,6 +56,7 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
                     defaultValue: "gen_random_uuid()",
                 },
             ]);
+            setForeignKeys([]);
         }
     }, [open]);
 
@@ -68,6 +83,69 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
         });
     };
 
+
+    const handleAddForeignKey = () => {
+        setEditingForeignKeyIndex(null);
+        setShowForeignKeyDialog(true);
+    };
+
+    const handleEditForeignKey = (index: number) => {
+        setEditingForeignKeyIndex(index);
+        setShowForeignKeyDialog(true);
+    };
+
+    const handleRemoveForeignKey = (index: number) => {
+        setForeignKeys((prev) => prev.filter((_, i) => i !== index));
+    };
+
+
+    const handleSaveForeignKey = (relation: ForeignKeyRelation) => {
+        const referencedTable = availableTables.find(table => table.data.name === relation.referencedTable);
+        if (!referencedTable) {
+            toast.error("Referenced table not found");
+            return;
+        }
+
+        const referencedField = referencedTable.data.fields.find(field => field.name === relation.referencedField);
+        if (!referencedField) {
+            toast.error("Referenced field not found");
+            return;
+        }
+
+        // Create the foreign key field
+        const foreignKeyField: Field = {
+            name: relation.fieldName,
+            type: referencedField.type,
+            length: referencedField.length,
+            precision: referencedField.precision,
+            scale: referencedField.scale,
+            primary: false,
+            nullable: true,
+            foreign: true,
+            unique: false,
+            referencedTable: relation.referencedTable,
+            referencedField: relation.referencedField,
+        };
+
+        if (editingForeignKeyIndex === null) {
+            // Add new foreign key
+            setForeignKeys((prev) => [...prev, relation]);
+            setFields((prev) => [...prev, foreignKeyField]);
+        } else {
+            // Edit existing foreign key
+            const oldRelation = foreignKeys[editingForeignKeyIndex];
+            setForeignKeys((prev) => prev.map((fk, i) => (i === editingForeignKeyIndex ? relation : fk)));
+
+            // Update the corresponding field
+            setFields((prev) => prev.map((field) => {
+                if (field.name === oldRelation.fieldName && field.foreign) {
+                    return foreignKeyField;
+                }
+                return field;
+            }));
+        }
+    };
+
     const handleCreate = () => {
         const name = tableName.trim();
         if (!name) {
@@ -78,15 +156,17 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
             toast.error("At least one primary key is required");
             return;
         }
-        onCreate({ name, fields });
+        onCreate({ name, fields, foreignKeys });
         onOpenChange(false);
     };
 
     const editingField = editingIndex !== null ? fields[editingIndex] : null;
+    const editingForeignKey = editingForeignKeyIndex !== null ? foreignKeys[editingForeignKeyIndex] : null;
+    const existingFieldNames = fields.map(f => f.name);
 
     return (
         <Drawer open={open} onOpenChange={onOpenChange} direction="right">
-            <DrawerContent className="bg-zinc-900 text-zinc-100 border-l border-zinc-700 min-w-[650px] max-w-2xl h-full fixed right-0 top-0 rounded-none hide-scrollbar">
+            <DrawerContent className="bg-zinc-900 text-zinc-100 border-l border-zinc-700 min-w-[750px] max-w-2xl h-full fixed right-0 top-0 rounded-none hide-scrollbar">
                 <DrawerHeader className="border-b border-zinc-700 px-6">
                     <DrawerTitle className="text-xl text-white font-medium">Create a new table</DrawerTitle>
                 </DrawerHeader>
@@ -120,59 +200,115 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
                         <Label className="text-sm font-medium text-zinc-200">Columns</Label>
 
                         {/* Column Headers */}
-                        <div className="grid grid-cols-12 gap-2 px-3 pt-2 text-xs font-medium ">
-                            <div className="col-span-3">Name</div>
+                        <div className="grid grid-cols-12 gap-2 px-3 pt-2 text-xs font-medium text-zinc-400">
+                            <div className="col-span-2">Name</div>
                             <div className="col-span-2">Type</div>
+                            <div className="col-span-3">Constraints</div>
                             <div className="col-span-3">Default Value</div>
-                            <div className="col-span-2">Primary</div>
                             <div className="col-span-2">Actions</div>
                         </div>
 
                         {/* Fields List */}
                         <div className="space-y-1">
-                            {fields.map((f, i) => (
-                                <div key={i} className="grid grid-cols-12 gap-2 items-center px-3 py-3  rounded group">
-                                    <div className="col-span-3">
-                                        <span className="font-mono text-sm text-white">{f.name}</span>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <span className="text-sm text-zinc-300">{f.type}</span>
-                                        {f.length && <span className="text-zinc-500 text-xs">({f.length})</span>}
-                                        {f.precision !== undefined && f.scale !== undefined && (
-                                            <span className="text-zinc-500 text-xs">({f.precision},{f.scale})</span>
-                                        )}
-                                    </div>
-                                    <div className="col-span-3">
-                                        <span className="text-sm text-zinc-400 font-mono">
-                                            {f.defaultValue || (f.nullable ? 'NULL' : '—')}
-                                        </span>
-                                    </div>
-                                    <div className="col-span-2">
-                                        {f.primary && (
-                                            <input
-                                                type="checkbox"
-                                                className="h-5 w-5 ml-4  text-green-600 bg-zinc-700 border-zinc-600 rounded"
+                            {fields.map((f, i) => {
+                                // Convert legacy constraints to new format for display
+                                const currentConstraints = f.constraints
+                                    ? f.constraints.map(c => c.type)
+                                    : legacyFormatToConstraints(f);
+
+                                return (
+                                    <div key={i} className="grid grid-cols-12 gap-2 items-start px-3 py-3 rounded group hover:bg-zinc-800/50 min-h-[3rem]">
+                                        {/* Name Column */}
+                                        <div className="col-span-2 flex items-center gap-1 min-w-0">
+                                            <span className={`font-mono text-sm break-all ${f.foreign ? 'text-blue-400' : 'text-white'}`}>
+                                                {f.name}
+                                            </span>
+                                        </div>
+
+                                        {/* Type Column with inline editing */}
+                                        <div className="col-span-2">
+                                            <DataTypeSelector
+                                                value={f.type.replace('[]', '')}
+                                                length={f.length}
+                                                precision={f.precision}
+                                                scale={f.scale}
+                                                onChange={(type, length, precision, scale) => {
+                                                    const arrayType = f.type.includes('[]') ? `${type}[]` : type;
+                                                    setFields((prev) => prev.map((field, index) =>
+                                                        index === i ? {
+                                                            ...field,
+                                                            type: arrayType,
+                                                            length,
+                                                            precision,
+                                                            scale
+                                                        } : field
+                                                    ));
+                                                }}
+                                                compact
                                             />
-                                        )}
+                                        </div>
+
+                                        {/* Constraints Column */}
+                                        <div className="col-span-3">
+                                            {f.foreign ? (
+                                                // For foreign key fields, only show FK icon and nullable option
+                                                <div className="flex items-center gap-1">
+                                                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-900/30 border border-blue-600 text-blue-300 rounded text-xs">
+                                                        <LinkIcon className="h-3 w-3" />
+
+                                                    </div>
+                                                    {f.nullable && (
+                                                        <div className="flex items-center gap-1 px-2 py-1 bg-gray-900/30 border border-gray-600 text-gray-300 rounded text-xs">
+                                                            <span>Nullable</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <ConstraintSelector
+                                                    value={currentConstraints}
+                                                    onChange={(constraints) => {
+                                                        const legacyConstraints = constraintsToLegacyFormat(constraints);
+                                                        setFields((prev) => prev.map((field, index) =>
+                                                            index === i ? {
+                                                                ...field,
+                                                                ...legacyConstraints,
+                                                                constraints: constraints.map(type => ({ type }))
+                                                            } : field
+                                                        ));
+                                                    }}
+                                                    className="text-xs"
+                                                    excludeForeignKey
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Default Value Column with text wrapping */}
+                                        <div className="col-span-3 min-w-0">
+                                            <div className="text-sm text-zinc-400 font-mono break-all overflow-wrap-anywhere">
+                                                {f.defaultValue || (f.nullable ? 'NULL' : '—')}
+                                            </div>
+                                        </div>
+
+                                        {/* Actions Column */}
+                                        <div className="col-span-2 flex items-center gap-1 justify-end">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleEditField(i)}
+                                                className="h-7 w-7 p-0 hover:bg-zinc-700"
+                                            >
+                                                <Edit2 className="h-3 w-3 text-zinc-400" />
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleRemoveField(i)}
+                                                className="h-7 w-7 p-0 hover:bg-zinc-700 hover:text-red-400"
+                                            >
+                                                <Trash2 className="h-3 w-3 text-zinc-400" />
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div className="col-span-2 flex items-center gap-1 ">
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleEditField(i)}
-                                            className="h-7 w-7 p-0 hover:bg-zinc-700"
-                                        >
-                                            <Edit2 className="h-3 w-3 text-zinc-400" />
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleRemoveField(i)}
-                                            className="h-7 w-7 p-0 hover:bg-zinc-700 hover:text-red-400"
-                                        >
-                                            <Trash2 className="h-3 w-3 text-zinc-400" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Add Column Button */}
@@ -188,14 +324,56 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
 
                     {/* Foreign Keys Section */}
                     <div className="space-y-4">
-                        <Label className="text-sm font-medium text-zinc-200">Foreign keys</Label>
+                        <Label className="text-sm font-medium text-zinc-200">Foreign Keys</Label>
+
+                        {/* Foreign Keys List */}
+                        {foreignKeys.length > 0 && (
+                            <div className="space-y-2">
+                                {foreignKeys.map((fk, index) => (
+                                    <div key={index} className="flex items-center justify-between p-3 bg-zinc-800 border border-zinc-700 rounded">
+                                        <div className="flex-1">
+                                            <div className="text-sm font-mono text-white">{fk.fieldName}</div>
+                                            <div className="text-xs text-zinc-400">
+                                                References {fk.referencedTable}.{fk.referencedField}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleEditForeignKey(index)}
+                                                className="h-7 w-7 p-0 hover:bg-zinc-700"
+                                            >
+                                                <Edit2 className="h-3 w-3 text-zinc-400" />
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleRemoveForeignKey(index)}
+                                                className="h-7 w-7 p-0 hover:bg-zinc-700 hover:text-red-400"
+                                            >
+                                                <Trash2 className="h-3 w-3 text-zinc-400" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Add Foreign Key Button */}
                         <Button
                             variant="ghost"
-                            className="w-full border-2 border-dashed border-zinc-600 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-300 h-12"
+                            onClick={handleAddForeignKey}
+                            disabled={availableTables.length === 0}
+                            className="w-full border-2 border-dashed border-zinc-600 hover:border-zinc-500 hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-300 h-12 disabled:opacity-50"
                         >
                             <Plus className="h-4 w-4 mr-2" />
-                            Add foreign key relation
+                            Add Foreign Key
                         </Button>
+
+                        {availableTables.length === 0 && (
+                            <div className="text-center text-zinc-500 text-sm py-4">
+                                No tables available to reference
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -225,6 +403,17 @@ export function AddTableDrawer({ open, onOpenChange, onCreate }: AddTableDrawerP
                     existingFields={fields}
                     mode={editingIndex === null ? "add" : "edit"}
                 />
+
+                <ForeignKeyDialog
+                    isOpen={showForeignKeyDialog}
+                    onClose={() => setShowForeignKeyDialog(false)}
+                    onSave={handleSaveForeignKey}
+                    availableTables={availableTables}
+                    existingFieldNames={existingFieldNames}
+                    relation={editingForeignKey}
+                    mode={editingForeignKeyIndex === null ? "add" : "edit"}
+                />
+
             </DrawerContent>
         </Drawer>
     );

@@ -1,10 +1,34 @@
+export type ConstraintType =
+  | 'primary_key'
+  | 'foreign_key'
+  | 'unique'
+  | 'not_null'
+  | 'nullable'
+  | 'check'
+  | 'identity'
+  | 'auto_increment'
+  | 'index';
+
+export interface EnhancedConstraint {
+  type: ConstraintType;
+  name?: string;
+  definition?: string; // for check constraints
+  referencedTable?: string; // for FK
+  referencedField?: string; // for FK
+  onUpdate?: 'CASCADE' | 'SET_NULL' | 'RESTRICT' | 'NO_ACTION';
+  onDelete?: 'CASCADE' | 'SET_NULL' | 'RESTRICT' | 'NO_ACTION';
+}
+
 export interface Field {
   name: string;
   type: string;
+  // Legacy boolean constraints (maintained for backward compatibility)
   primary?: boolean;
   nullable?: boolean;
   unique?: boolean;
   foreign?: boolean;
+  // Enhanced constraint system
+  constraints?: EnhancedConstraint[];
   length?: number;
   precision?: number;
   scale?: number;

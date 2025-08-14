@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { toast } from 'react-hot-toast';
 import '@xyflow/react/dist/style.css';
-import { Database, Plus, Save } from 'lucide-react';
+import { Database, LinkIcon, Plus, Save } from 'lucide-react';
 import Link from 'next/link';
 import { TableNode } from '@/components/editor/nodes/TableNode';
 import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
@@ -263,6 +263,18 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             const nodeToDelete = nodes.find((n) => n.id === tableId);
             const deletedTableName = nodeToDelete?.data.name;
 
+            if (!nodeToDelete) {
+                toast.error('Table not found');
+                return;
+            }
+
+            // Collect information about what will be cleaned up
+            const cleanupSummary = {
+                removedFields: [] as string[],
+                removedReferences: [] as string[],
+                affectedTables: [] as string[]
+            };
+
             // 1) Remove the node itself and cascade-clean remaining nodes
             setNodes((existingNodes) => {
                 const remainingNodes = existingNodes.filter((n) => n.id !== tableId);
@@ -270,27 +282,82 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 return remainingNodes.map((n) => {
                     let updatedFields = n.data.fields;
                     let updatedReferences = n.data.references || [];
+                    let hasChanges = false;
 
                     // Remove references pointing to the deleted source table
                     const foreignKeyFieldsToRemove = new Set<string>();
+                    const originalReferencesLength = updatedReferences.length;
+                    
                     updatedReferences = updatedReferences.filter((ref) => {
                         const shouldRemove =
                             ref.sourceTableId === tableId ||
                             (deletedTableName ? ref.sourceTableName === deletedTableName : false);
-                        if (shouldRemove) foreignKeyFieldsToRemove.add(ref.foreignKeyField);
+                        if (shouldRemove) {
+                            foreignKeyFieldsToRemove.add(ref.foreignKeyField);
+                            cleanupSummary.removedReferences.push(`${n.data.name}.${ref.foreignKeyField} → ${deletedTableName}`);
+                        }
                         return !shouldRemove;
                     });
 
+                    if (updatedReferences.length !== originalReferencesLength) {
+                        hasChanges = true;
+                    }
+
                     // Remove FK fields that correspond to removed references
                     if (foreignKeyFieldsToRemove.size > 0) {
-                        updatedFields = updatedFields.filter((f) => !foreignKeyFieldsToRemove.has(f.name));
+                        const originalFieldsLength = updatedFields.length;
+                        updatedFields = updatedFields.filter((f) => {
+                            const shouldRemove = foreignKeyFieldsToRemove.has(f.name);
+                            if (shouldRemove) {
+                                cleanupSummary.removedFields.push(`${n.data.name}.${f.name}`);
+                            }
+                            return !shouldRemove;
+                        });
+                        
+                        if (updatedFields.length !== originalFieldsLength) {
+                            hasChanges = true;
+                        }
                     }
 
                     // Safety: also remove any FK fields that explicitly reference the deleted table by name
                     if (deletedTableName) {
-                        updatedFields = updatedFields.filter(
-                            (f) => !(f.foreign && f.referencedTable === deletedTableName)
-                        );
+                        const fieldsBeforeCleanup = updatedFields.length;
+                        updatedFields = updatedFields.filter((f) => {
+                            const shouldRemove = f.foreign && f.referencedTable === deletedTableName;
+                            if (shouldRemove) {
+                                cleanupSummary.removedFields.push(`${n.data.name}.${f.name} (orphaned FK)`);
+                            }
+                            return !shouldRemove;
+                        });
+
+                        if (updatedFields.length !== fieldsBeforeCleanup) {
+                            hasChanges = true;
+                        }
+                    }
+
+                    // Enhanced constraint cleanup - remove foreign key constraints that reference deleted table
+                    updatedFields = updatedFields.map(field => {
+                        if (field.constraints) {
+                            const originalConstraints = field.constraints.length;
+                            const cleanedConstraints = field.constraints.filter(constraint => {
+                                const shouldRemove = constraint.type === 'foreign_key' &&
+                                                   constraint.referencedTable === deletedTableName;
+                                if (shouldRemove) {
+                                    cleanupSummary.removedReferences.push(`${n.data.name}.${field.name} constraint → ${deletedTableName}`);
+                                }
+                                return !shouldRemove;
+                            });
+
+                            if (cleanedConstraints.length !== originalConstraints) {
+                                hasChanges = true;
+                                return { ...field, constraints: cleanedConstraints };
+                            }
+                        }
+                        return field;
+                    });
+
+                    if (hasChanges && !cleanupSummary.affectedTables.includes(n.data.name)) {
+                        cleanupSummary.affectedTables.push(n.data.name);
                     }
 
                     return {
@@ -305,11 +372,32 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             });
 
             // 2) Remove edges connected to the deleted table
+            const removedEdges = edges.filter((edge) => edge.source === tableId || edge.target === tableId);
             setEdges((eds) => eds.filter((edge) => edge.source !== tableId && edge.target !== tableId));
 
-            toast.success('Table removed and related references cleaned up');
+            // 3) Show detailed cleanup summary
+            let successMessage = `Table "${deletedTableName}" deleted successfully`;
+            if (cleanupSummary.affectedTables.length > 0) {
+                successMessage += `\n\nCascade cleanup completed:`;
+                
+                if (cleanupSummary.removedFields.length > 0) {
+                    successMessage += `\n• Removed ${cleanupSummary.removedFields.length} foreign key field(s)`;
+                }
+                
+                if (cleanupSummary.removedReferences.length > 0) {
+                    successMessage += `\n• Removed ${cleanupSummary.removedReferences.length} relationship(s)`;
+                }
+                
+                if (removedEdges.length > 0) {
+                    successMessage += `\n• Removed ${removedEdges.length} visual connection(s)`;
+                }
+
+                successMessage += `\n• Affected tables: ${cleanupSummary.affectedTables.join(', ')}`;
+            }
+
+            toast.success(successMessage, { duration: 6000 });
         },
-        [nodes, setEdges, setNodes]
+        [nodes, edges, setEdges, setNodes]
     );
 
     const handleAddField = useCallback(
@@ -413,7 +501,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
     }, [nodes, handleUpdateTable, handleRemoveTable, handleAddField, handleRemoveField, handleUpdateField, handleTableClick]);
 
     const MAX_TABLES = 50;
-    const handleCreateTableFromDrawer = useCallback((table: { name: string; fields: Field[] }) => {
+    const handleCreateTableFromDrawer = useCallback((table: { name: string; fields: Field[]; foreignKeys?: Array<{ fieldName: string; referencedTable: string; referencedField: string }> }) => {
         if (nodes.length >= MAX_TABLES) {
             toast.error(`Cannot add more than ${MAX_TABLES} tables`);
             return;
@@ -430,8 +518,9 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             return;
         }
 
+        const newTableId = `table-${nextTableId}`;
         const newNode: Node<TableNodeData> = {
-            id: `table-${nextTableId}`,
+            id: newTableId,
             type: 'table',
             position: {
                 x: Math.random() * window.innerWidth * 0.5 + window.innerWidth * 0.1,
@@ -440,13 +529,70 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             data: {
                 name,
                 fields: table.fields,
+                references: table.foreignKeys?.map(fk => {
+                    const sourceTable = nodes.find(n => n.data.name === fk.referencedTable);
+                    return {
+                        sourceTableId: sourceTable?.id || '',
+                        sourceTableName: fk.referencedTable,
+                        foreignKeyField: fk.fieldName,
+                        referencedField: fk.referencedField,
+                    };
+                }) || []
             },
         };
 
         setNodes((nds) => nds.concat(newNode));
+
+        // Create edges for foreign key relationships
+        if (table.foreignKeys && table.foreignKeys.length > 0) {
+            const newEdges: Edge<ReferenceEdgeData>[] = [];
+            
+            table.foreignKeys.forEach(fk => {
+                const sourceTable = nodes.find(n => n.data.name === fk.referencedTable);
+                if (sourceTable) {
+                    const newEdge: Edge<ReferenceEdgeData> = {
+                        id: `ref-${sourceTable.id}-${newTableId}-${Date.now()}-${fk.fieldName}`,
+                        source: sourceTable.id,
+                        target: newTableId,
+                        type: 'smoothstep',
+                        animated: true,
+                        style: {
+                            stroke: '#ffffff',
+                            strokeWidth: 2,
+                        },
+                        markerEnd: {
+                            type: MarkerType.ArrowClosed,
+                            color: '#ffffff',
+                            width: 12,
+                            height: 12,
+                        },
+                        data: {
+                            sourceField: fk.referencedField,
+                            targetField: fk.fieldName,
+                            sourceTable: fk.referencedTable,
+                            targetTable: name,
+                            sourceTableId: sourceTable.id,
+                            destinationTableId: newTableId,
+                            relationship: 'one-to-many',
+                            referenceType: 'foreign_key',
+                        },
+                    };
+                    newEdges.push(newEdge);
+                }
+            });
+
+            if (newEdges.length > 0) {
+                setEdges((eds) => [...eds, ...newEdges]);
+                toast.success(`Table "${name}" created with ${newEdges.length} foreign key relationship(s)`);
+            } else {
+                toast.success(`Table "${name}" created`);
+            }
+        } else {
+            toast.success(`Table "${name}" created`);
+        }
+
         setNextTableId((prev) => prev + 1);
-        toast.success(`Table "${name}" created`);
-    }, [nodes, nextTableId, setNodes]);
+    }, [nodes, nextTableId, setNodes, setEdges]);
 
     // Edge removal is handled implicitly when deleting foreign key fields
 
@@ -526,7 +672,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 <header className="sticky top-0 mx-4 mt-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 z-20 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-6">
                         <Link href="/" className="flex items-center gap-2 hover:opacity-90">
-                            <Database className="h-6 w-6 text-white" />
+                            <Database className="h-6 w-6 text-blue-400" />
                             <span className="text-2xl font-bold">DBase</span>
                         </Link>
                         <div className="text-sm text-zinc-300 flex gap-6 font-medium">
@@ -539,13 +685,13 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             onClick={() => setIsAddTableOpen(true)}
                             className="rounded-full bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
                         >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-4 w-4 text-green-400" />
                             Add Table
                         </button>
                         <SignedOut>
                             <SignInButton mode="modal">
                                 <button className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors">
-                                    <Save className="h-4 w-4" />
+                                    <Save className="h-4 w-4 text-white" />
                                     Log in to save
                                 </button>
                             </SignInButton>
@@ -555,7 +701,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                                 onClick={handleSave}
                                 className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
                             >
-                                <Save className="h-4 w-4" />
+                                <Save className="h-4 w-4 text-white" />
                                 Save Schema
                             </button>
                         </SignedIn>
@@ -605,15 +751,20 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 <div className="absolute bottom-0 left-0  flex justify-center px-1 py-2 shadow-md bg-zinc-900 w-full z-10">
                     <ul className="flex flex-wrap items-center justify-center gap-4">
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
-                            <Key className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+                            <Key className="h-4 w-4 flex-shrink-0 text-yellow-400" />
                             Primary key
                         </li>
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
-                            <Hash className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+                            <LinkIcon className="h-4 w-4 flex-shrink-0 text-blue-400" />
+                            Foreign key
+                        </li>
+
+                        <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
+                            <Hash className="h-4 w-4 flex-shrink-0 text-green-400" />
                             Identity
                         </li>
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
-                            <Fingerprint className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+                            <Fingerprint className="h-4 w-4 flex-shrink-0 text-purple-400" />
                             Unique
                         </li>
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
@@ -621,7 +772,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             Nullable
                         </li>
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
-                            <Diamond className="h-4 w-4 flex-shrink-0 text-zinc-300 fill-current" />
+                            <Diamond className="h-4 w-4 flex-shrink-0 text-red-400 fill-current" />
                             Non-Nullable
                         </li>
                     </ul>
@@ -630,6 +781,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                     open={isAddTableOpen}
                     onOpenChange={setIsAddTableOpen}
                     onCreate={handleCreateTableFromDrawer}
+                    availableTables={nodes}
                 />
             </SidebarInset>
         </SidebarProvider>

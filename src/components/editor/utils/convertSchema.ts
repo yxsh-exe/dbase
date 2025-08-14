@@ -15,27 +15,38 @@ function toCamelCase(input: string): string {
 }
 
 function mapDbTypeToPrisma(dbType: string): string {
-  const t = dbType.toLowerCase();
-  if (['int2', 'int4', 'integer', 'int'].includes(t)) return 'Int';
-  if (['int8', 'bigint'].includes(t)) return 'BigInt';
-  if (['float4', 'float8', 'double', 'real', 'numeric', 'decimal'].includes(t)) return 'Float';
-  if (['bool', 'boolean'].includes(t)) return 'Boolean';
-  if (['uuid'].includes(t)) return 'String';
-  if (['date', 'timestamp', 'timestamptz', 'time', 'timetz'].includes(t)) return 'DateTime';
-  return 'String';
+  // Handle array types
+  const isArray = dbType.endsWith('[]');
+  const baseType = isArray ? dbType.slice(0, -2) : dbType;
+  const t = baseType.toLowerCase();
+  
+  let prismaType = 'String'; // default
+  if (['int2', 'int4', 'integer', 'int'].includes(t)) prismaType = 'Int';
+  else if (['int8', 'bigint'].includes(t)) prismaType = 'BigInt';
+  else if (['float4', 'float8', 'double', 'real', 'numeric', 'decimal'].includes(t)) prismaType = 'Float';
+  else if (['bool', 'boolean'].includes(t)) prismaType = 'Boolean';
+  else if (['uuid'].includes(t)) prismaType = 'String';
+  else if (['date', 'timestamp', 'timestamptz', 'time', 'timetz'].includes(t)) prismaType = 'DateTime';
+  
+  return isArray ? `${prismaType}[]` : prismaType;
 }
 
 function mapDbTypeToDrizzle(dbType: string): string {
-  const t = dbType.toLowerCase();
-  if (['int2', 'int4', 'integer', 'int'].includes(t)) return 'integer';
-  if (['int8', 'bigint'].includes(t)) return 'bigint';
-  if (['text', 'varchar', 'char'].includes(t)) return 'text';
-  if (['bool', 'boolean'].includes(t)) return 'boolean';
-  if (['uuid'].includes(t)) return 'uuid';
-  if (['date'].includes(t)) return 'date';
-  if (['timestamp', 'timestamptz'].includes(t)) return 'timestamp';
-  // default to text builder
-  return 'text';
+  // Handle array types
+  const isArray = dbType.endsWith('[]');
+  const baseType = isArray ? dbType.slice(0, -2) : dbType;
+  const t = baseType.toLowerCase();
+  
+  let drizzleType = 'text'; // default
+  if (['int2', 'int4', 'integer', 'int'].includes(t)) drizzleType = 'integer';
+  else if (['int8', 'bigint'].includes(t)) drizzleType = 'bigint';
+  else if (['text', 'varchar', 'char'].includes(t)) drizzleType = 'text';
+  else if (['bool', 'boolean'].includes(t)) drizzleType = 'boolean';
+  else if (['uuid'].includes(t)) drizzleType = 'uuid';
+  else if (['date'].includes(t)) drizzleType = 'date';
+  else if (['timestamp', 'timestamptz'].includes(t)) drizzleType = 'timestamp';
+  
+  return drizzleType; // Drizzle arrays will be handled differently in the builder
 }
 
 export function generateSql(nodes: Node<TableNodeData>[]): string {
@@ -51,16 +62,29 @@ export function generateSql(nodes: Node<TableNodeData>[]): string {
       const parts: string[] = [];
       parts.push(`"${field.name}"`);
       const typeClause = (() => {
-        const base = field.type || 'text';
-        if (field.length) return `${base}(${field.length})`;
-        if (field.precision && field.scale) return `${base}(${field.precision}, ${field.scale})`;
-        if (field.precision) return `${base}(${field.precision})`;
-        return base;
+        const fieldType = field.type || 'text';
+        const isArray = fieldType.endsWith('[]');
+        const baseType = isArray ? fieldType.slice(0, -2) : fieldType;
+        
+        let sqlType = baseType;
+        if (field.length) sqlType = `${baseType}(${field.length})`;
+        else if (field.precision && field.scale) sqlType = `${baseType}(${field.precision}, ${field.scale})`;
+        else if (field.precision) sqlType = `${baseType}(${field.precision})`;
+        
+        return isArray ? `${sqlType}[]` : sqlType;
       })();
       parts.push(typeClause);
       if (field.nullable === false) parts.push('NOT NULL');
       if (field.unique) parts.push('UNIQUE');
-      if (field.defaultValue) parts.push(`DEFAULT ${field.defaultValue}`);
+      if (field.defaultValue) {
+        // Handle array default values
+        const isArrayType = field.type?.endsWith('[]');
+        if (isArrayType && field.defaultValue && !field.defaultValue.startsWith('{')) {
+          parts.push(`DEFAULT '{${field.defaultValue}}'`);
+        } else {
+          parts.push(`DEFAULT ${field.defaultValue}`);
+        }
+      }
       columnLines.push(parts.join(' '));
 
       if (field.foreign && field.referencedTable) {
@@ -109,8 +133,19 @@ datasource db {
       const attributes: string[] = [];
       if (field.primary) attributes.push('@id');
       if (field.unique) attributes.push('@unique');
-      // basic default passthrough
-      if (field.defaultValue) attributes.push(`@default(${field.defaultValue})`);
+      
+      // Handle default values for arrays and regular types
+      if (field.defaultValue) {
+        const isArrayType = field.type?.endsWith('[]');
+        if (isArrayType) {
+          // For arrays, wrap in brackets if not already done
+          const defaultVal = field.defaultValue.startsWith('[') ? field.defaultValue : `[${field.defaultValue}]`;
+          attributes.push(`@default(${defaultVal})`);
+        } else {
+          attributes.push(`@default(${field.defaultValue})`);
+        }
+      }
+      
       const attrStr = attributes.length ? ' ' + attributes.join(' ') : '';
       lines.push(`  ${field.name} ${prismaType}${optional}${attrStr}`);
     }
@@ -154,13 +189,33 @@ export function generateDrizzle(nodes: Node<TableNodeData>[]): string {
     const columnLines: string[] = [];
 
     for (const field of node.data.fields) {
-      const builder = mapDbTypeToDrizzle(field.type || 'text');
+      const fieldType = field.type || 'text';
+      const isArray = fieldType.endsWith('[]');
+      const baseBuilder = mapDbTypeToDrizzle(fieldType);
+      
       const parts: string[] = [];
-      parts.push(`${builder}("${field.name}")`);
+      if (isArray) {
+        // For arrays, use the array() wrapper
+        parts.push(`${baseBuilder}("${field.name}").array()`);
+      } else {
+        parts.push(`${baseBuilder}("${field.name}")`);
+      }
+      
       if (field.nullable === false) parts.push('.notNull()');
       if (field.primary) parts.push('.primaryKey()');
       if (field.unique) parts.push('.unique()');
-      if (field.defaultValue) parts.push(`.default(${field.defaultValue})`);
+      
+      if (field.defaultValue) {
+        const isArrayType = field.type?.endsWith('[]');
+        if (isArrayType) {
+          // For arrays, ensure proper array format
+          const defaultVal = field.defaultValue.startsWith('[') ? field.defaultValue : `[${field.defaultValue}]`;
+          parts.push(`.default(${defaultVal})`);
+        } else {
+          parts.push(`.default(${field.defaultValue})`);
+        }
+      }
+      
       if (field.foreign && field.referencedTable) {
         const refVar = toCamelCase(field.referencedTable);
         const refField = field.referencedField ?? 'id';

@@ -1,6 +1,6 @@
-import { Edit2, Plus, Trash2, Key, Hash, Fingerprint, Diamond } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { Diamond, Edit2, Fingerprint, Hash, Key, Link, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { FieldDialog } from './FieldDialog';
 import { Field, TableNodeData } from './types/Field';
 
@@ -73,9 +73,96 @@ export const TableNode = ({
 
     const getFieldStyle = (field: Field) => {
         if (field.primary) return 'font-semibold text-white';
-        if (field.foreign) return 'font-medium text-zinc-300';
+        if (field.foreign) return 'font-medium text-blue-300';
         if (!field.nullable) return 'font-medium text-zinc-200';
         return 'font-normal text-zinc-300';
+    };
+
+    const getConstraintIcons = (field: Field) => {
+        const icons = [];
+        const constraints = field.constraints?.map(c => c.type) || [];
+
+        // Legacy constraint handling
+        if (field.primary || constraints.includes('primary_key')) {
+            icons.push(
+                <span key="primary" title="Primary Key">
+                    <Key className="w-3.5 h-3.5 text-yellow-400" />
+                </span>
+            );
+        }
+
+        if (field.foreign || constraints.includes('foreign_key')) {
+            const fkConstraint = field.constraints?.find(c => c.type === 'foreign_key');
+            const cascadeInfo = [];
+            if (fkConstraint?.onDelete === 'CASCADE') cascadeInfo.push('CASCADE DEL');
+            if (fkConstraint?.onUpdate === 'CASCADE') cascadeInfo.push('CASCADE UPD');
+
+            icons.push(
+                <span
+                    key="foreign"
+                    title={`Foreign Key${cascadeInfo.length ? ' (' + cascadeInfo.join(', ') + ')' : ''}`}
+                >
+                    <Link className="w-3.5 h-3.5 text-blue-400" />
+                </span>
+            );
+        }
+
+        if ((field.unique && !field.primary) || (constraints.includes('unique') && !constraints.includes('primary_key'))) {
+            icons.push(
+                <span key="unique" title="Unique">
+                    <Fingerprint className="w-3.5 h-3.5 text-purple-400" />
+                </span>
+            );
+        }
+
+
+        if (isIdentity(field) || constraints.includes('identity')) {
+            icons.push(
+                <span key="identity" title="Identity/Auto Increment">
+                    <Hash className="w-3.5 h-3.5 text-green-400" />
+                </span>
+            );
+        }
+
+        // Nullable/Not Null indicator
+        const isNotNull = field.nullable === false || field.primary || constraints.includes('not_null') || constraints.includes('primary_key');
+        icons.push(
+            <span
+                key="nullable"
+                title={isNotNull ? "Not Null" : "Nullable"}
+            >
+                <Diamond className={`w-3.5 h-3.5 ${isNotNull ? 'text-red-400 fill-current' : 'text-zinc-300'}`} />
+            </span>
+        );
+
+        return icons;
+    };
+
+    const getFieldTooltip = (field: Field) => {
+        const parts = [];
+
+        if (field.referencedTable) {
+            parts.push(`References ${field.referencedTable}.${field.referencedField}`);
+        }
+
+        if (field.constraints) {
+            const constraintNames = field.constraints.map(c => {
+                switch (c.type) {
+                    case 'primary_key': return 'Primary Key';
+                    case 'foreign_key': return 'Foreign Key';
+                    case 'unique': return 'Unique';
+                    case 'not_null': return 'Not Null';
+                    case 'identity': return 'Identity';
+                    default: return c.type;
+                }
+            });
+
+            if (constraintNames.length > 0) {
+                parts.push(`Constraints: ${constraintNames.join(', ')}`);
+            }
+        }
+
+        return parts.join('\n');
     };
 
     const isIdentity = (field: Field) => {
@@ -147,56 +234,82 @@ export const TableNode = ({
 
                 {/* Fields List */}
                 <div>
-                    {data.fields.map((field: Field, index: number) => (
-                        <div
-                            key={index}
-                            className="flex items-center px-4 py-2 border-b border-zinc-800 last:border-b-0 group hover:bg-zinc-800 transition-colors"
-                        >
-                            <div className="flex items-center w-full">
-                                {/* Icons before name */}
-                                <div className="mr-4  text-zinc-200 flex items-center gap-1 shrink-0">
-                                    {field.primary && <Key className="w-3.5 h-3.5" />}
-                                    {isIdentity(field) && <Hash className="w-3.5 h-3.5" />}
-                                    {field.unique && !field.primary && (
-                                        <Fingerprint className="w-3.5 h-3.5" />
-                                    )}
-                                    {field.nullable === false || field.primary ? (
-                                        <Diamond className="w-3.5 h-3.5" fill="currentColor" />
-                                    ) : (
-                                        <Diamond className="w-3.5 h-3.5" />
-                                    )}
-                                </div>
+                    {data.fields.map((field: Field, index: number) => {
+                        const constraintIcons = getConstraintIcons(field);
+                        const tooltip = getFieldTooltip(field);
 
-                                {/* Field name */}
-                                <div className="flex-1 min-w-0">
-                                    <div className={`text-xs ${getFieldStyle(field)} truncate`}>
-                                        {field.name}
+                        return (
+                            <div
+                                key={index}
+                                className="flex items-center px-4 py-2 border-b border-zinc-800 last:border-b-0 group hover:bg-zinc-800 transition-colors"
+                                title={tooltip}
+                            >
+                                <div className="flex items-center w-full">
+                                    {/* Enhanced constraint icons */}
+                                    <div className="mr-3 flex items-center gap-1 shrink-0">
+                                        {constraintIcons}
                                     </div>
-                                </div>
 
-                                {/* Type on same row, right aligned */}
-                                <div className="ml-3 flex items-center gap-2">
-                                    <div className="text-[10px] text-zinc-400 ">
-                                        {formatFieldType(field)}
+                                    {/* Field name with enhanced styling */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className={`text-xs ${getFieldStyle(field)} truncate flex items-center gap-1`}>
+                                            <span>{field.name}</span>
+                                            {/* Enhanced FK indicator with cascade info */}
+                                            {field.foreign && field.constraints?.some(c => c.type === 'foreign_key') && (
+                                                <div className="flex gap-1">
+                                                    {field.constraints
+                                                        ?.filter(c => c.type === 'foreign_key')
+                                                        .map((constraint, idx) => (
+                                                            <div key={idx} className="flex gap-0.5">
+                                                                {constraint.onDelete === 'CASCADE' && (
+                                                                    <span className="text-[8px] px-1 py-0.5 bg-red-900/50 text-red-300 rounded">
+                                                                        C-DEL
+                                                                    </span>
+                                                                )}
+                                                                {constraint.onUpdate === 'CASCADE' && (
+                                                                    <span className="text-[8px] px-1 py-0.5 bg-blue-900/50 text-blue-300 rounded">
+                                                                        C-UPD
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    }
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Reference info for foreign keys */}
+                                        {field.referencedTable && (
+                                            <div className="text-[9px] text-zinc-500 truncate">
+                                                → {field.referencedTable}.{field.referencedField}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                                        <button
-                                            onClick={(e) => handleEditField(index, e)}
-                                            className="text-zinc-400 hover:text-white p-1 transition-colors"
-                                        >
-                                            <Edit2 className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleRemoveField(index, e)}
-                                            className="text-zinc-400 hover:text-white p-1 transition-colors"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
+
+                                    {/* Type and actions */}
+                                    <div className="ml-3 flex items-center gap-2">
+                                        <div className="text-[10px] text-zinc-400">
+                                            {formatFieldType(field)}
+                                        </div>
+                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                                            <button
+                                                onClick={(e) => handleEditField(index, e)}
+                                                className="text-zinc-400 hover:text-white p-1 transition-colors"
+                                            >
+                                                <Edit2 className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleRemoveField(index, e)}
+                                                className="text-zinc-400 hover:text-white p-1 transition-colors"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Add Field Button */}

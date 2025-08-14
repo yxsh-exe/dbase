@@ -25,8 +25,9 @@ import {
 } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useEffect, useState } from 'react';
-import { POSTGRESQL_TYPES } from './constants/postgresTypes';
-import { Field } from './types/Field';
+import { Field, ConstraintType } from './types/Field';
+import { ConstraintSelector, legacyFormatToConstraints, constraintsToLegacyFormat } from './ConstraintSelector';
+import { DataTypeSelector } from './DataTypeSelector';
 import { toast } from 'react-hot-toast';
 
 type DefaultOption = { label: string; value: string };
@@ -154,57 +155,55 @@ export const FieldDialog = ({
     mode = 'add'
 }: FieldDialogProps) => {
     const [fieldName, setFieldName] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("Character");
     const [selectedType, setSelectedType] = useState("varchar");
     const [length, setLength] = useState("");
     const [precision, setPrecision] = useState("");
     const [scale, setScale] = useState("");
-    const [isPrimary, setIsPrimary] = useState(false);
-    const [isUnique, setIsUnique] = useState(false);
-    const [isNullable, setIsNullable] = useState(true);
+    const [constraints, setConstraints] = useState<ConstraintType[]>([]);
     const [defaultValue, setDefaultValue] = useState("");
     const [checkConstraint, setCheckConstraint] = useState("");
     const [enumValues, setEnumValues] = useState("");
     const [isEnum, setIsEnum] = useState(false);
-    // errors handled via toast notifications
+    const [isArray, setIsArray] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             if (mode === 'edit' && field) {
                 setFieldName(field.name);
-                setIsEnum(field.type === 'enum');
-                if (field.type === 'enum') {
+                setIsArray(field.type.endsWith('[]'));
+                const baseType = field.type.replace('[]', '');
+                setIsEnum(baseType === 'enum');
+                
+                if (baseType === 'enum') {
                     setEnumValues(field.enumValues?.join(', ') || '');
                 } else {
-                    setSelectedType(field.type);
-                    const category = Object.entries(POSTGRESQL_TYPES).find(([, types]) =>
-                        types.includes(field.type)
-                    )?.[0] || 'Character';
-                    setSelectedCategory(category);
+                    setSelectedType(baseType);
                 }
+                
                 setLength(field.length?.toString() || '');
                 setPrecision(field.precision?.toString() || '');
                 setScale(field.scale?.toString() || '');
-                setIsPrimary(!!field.primary);
-                setIsUnique(!!field.unique);
-                setIsNullable(field.nullable !== false);
                 setDefaultValue(field.defaultValue || '');
                 setCheckConstraint(field.check || '');
+                
+                // Convert legacy constraints to new format
+                const fieldConstraints = field.constraints
+                    ? field.constraints.map(c => c.type)
+                    : legacyFormatToConstraints(field);
+                setConstraints(fieldConstraints);
             } else {
                 setFieldName("");
                 setSelectedType("varchar");
                 setLength("");
                 setPrecision("");
                 setScale("");
-                setIsPrimary(false);
-                setIsUnique(false);
-                setIsNullable(true);
+                setConstraints([]);
                 setDefaultValue("");
                 setCheckConstraint("");
                 setEnumValues("");
                 setIsEnum(false);
+                setIsArray(false);
             }
-            // reset handled values above; errors shown via toast
         }
     }, [isOpen, field, mode]);
 
@@ -233,12 +232,19 @@ export const FieldDialog = ({
             return;
         }
 
+        const finalType = isEnum ? "enum" : selectedType;
+        const typeWithArray = isArray ? `${finalType}[]` : finalType;
+        
+        // Convert constraints to legacy format for backward compatibility
+        const legacyFormat = constraintsToLegacyFormat(constraints);
+        
         const newField: Field = {
             name: fieldName.trim(),
-            type: isEnum ? "enum" : selectedType,
-            primary: isPrimary,
-            unique: isUnique || isPrimary,
-            nullable: isPrimary ? false : isNullable,
+            type: typeWithArray,
+            // Legacy constraint fields for backward compatibility
+            ...legacyFormat,
+            // Enhanced constraint system
+            constraints: constraints.map(type => ({ type })),
             ...(length && { length: parseInt(length) }),
             ...(precision && { precision: parseInt(precision) }),
             ...(scale && { scale: parseInt(scale) }),
@@ -251,8 +257,6 @@ export const FieldDialog = ({
         onClose();
     };
 
-    const needsLength = ["varchar"].includes(selectedType);
-    const needsPrecisionScale = ["numeric"].includes(selectedType);
     const presetOptions = getDefaultOptionsForType(selectedType, isEnum, enumValues);
     const presetValue = defaultValue
         ? (presetOptions.find(o => o.value === defaultValue)?.value ?? '__custom__')
@@ -270,14 +274,16 @@ export const FieldDialog = ({
         setDefaultValue(value);
     };
 
+    // Utility functions for constraint management moved to component level
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-lg  bg-zinc-900 text-zinc-100  rounded-md">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-zinc-100 uppercase tracking-wide">
+            <DialogContent className="max-w-lg bg-black text-white border border-white/20 rounded-xl">
+                <DialogHeader className="pb-4">
+                    <DialogTitle className="text-lg font-semibold text-white">
                         {mode === 'edit' ? 'Edit Field' : 'Create Field'}
                     </DialogTitle>
-                    <DialogDescription className="text-zinc-300 text-sm mt-2">
+                    <DialogDescription className="text-gray-300 text-sm">
                         {mode === 'edit'
                             ? 'Modify the field properties below.'
                             : 'Define your field properties and constraints.'
@@ -285,254 +291,145 @@ export const FieldDialog = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-4 max-h-[60vh] overflow-y-auto hide-scrollbar">
-                    <div className="space-y-6">
-                        {/* Field Name */}
-                        <div className="space-y-2">
-                            <Label htmlFor="field-name" className="text-sm font-semibold text-zinc-100 uppercase tracking-wide">
-                                Field Name
-                            </Label>
-                            <Input
-                                className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
-                                id="field-name"
-                                value={fieldName}
-                                onChange={(e) => setFieldName(e.target.value)}
-                                placeholder="field_name"
+                <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+                    {/* Field Name */}
+                    <div className="space-y-2">
+                        <Label htmlFor="field-name" className="text-sm font-medium text-white">
+                            Field Name
+                        </Label>
+                        <Input
+                            className="bg-black border border-white/30 text-white placeholder:text-gray-400 focus:border-white rounded-lg"
+                            id="field-name"
+                            value={fieldName}
+                            onChange={(e) => setFieldName(e.target.value)}
+                            placeholder="field_name"
+                        />
+                    </div>
+
+                    {/* Data Type Selection */}
+                    <div className="space-y-4">
+                        <Label className="text-sm font-medium text-white">Data Type</Label>
+                        <Tabs value={isEnum ? "enum" : "standard"} onValueChange={(value) => setIsEnum(value === "enum")} className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 bg-black border border-white/30 rounded-lg">
+                                <TabsTrigger
+                                    value="standard"
+                                    className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-300 rounded-md"
+                                >
+                                    Standard
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="enum"
+                                    className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-300 rounded-md"
+                                >
+                                    Enum
+                                </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="standard" className="space-y-4 mt-4">
+                                <DataTypeSelector
+                                    value={selectedType}
+                                    length={length ? parseInt(length) : undefined}
+                                    precision={precision ? parseInt(precision) : undefined}
+                                    scale={scale ? parseInt(scale) : undefined}
+                                    onChange={(type, newLength, newPrecision, newScale) => {
+                                        setSelectedType(type);
+                                        setLength(newLength?.toString() || '');
+                                        setPrecision(newPrecision?.toString() || '');
+                                        setScale(newScale?.toString() || '');
+                                    }}
+                                    compact
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="enum" className="space-y-4 mt-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium text-white">Enum Values</Label>
+                                    <Textarea
+                                        value={enumValues}
+                                        onChange={(e) => setEnumValues(e.target.value)}
+                                        placeholder="active, inactive, pending"
+                                        rows={3}
+                                        className="bg-black border border-white/30 text-white placeholder:text-gray-400 focus:border-white resize-none rounded-lg"
+                                    />
+                                    <p className="text-xs text-gray-400">Separate values with commas</p>
+                                </div>
+                            </TabsContent>
+                        </Tabs>
+
+                        {/* Array Option */}
+                        <div className="flex items-center space-x-3 p-4 bg-black border border-white/30 rounded-lg">
+                            <Checkbox
+                                id="array-type"
+                                checked={isArray}
+                                onCheckedChange={(checked) => setIsArray(!!checked)}
+                                className="border-2 border-white/30 data-[state=checked]:bg-white data-[state=checked]:border-white data-[state=checked]:text-black rounded"
                             />
-                        </div>
-
-                        {/* Data Type Selection */}
-                        <div className="space-y-4">
-                            <Label className="text-sm font-semibold text-zinc-100 uppercase tracking-wide">Data Type</Label>
-                            <Tabs value={isEnum ? "enum" : "standard"} onValueChange={(value) => setIsEnum(value === "enum")} className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 bg-zinc-800 border-2 border-zinc-600 rounded-none">
-                                    <TabsTrigger
-                                        value="standard"
-                                        className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-100 font-medium uppercase tracking-wide rounded-none"
-                                    >
-                                        Standard
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="enum"
-                                        className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-100 font-medium uppercase tracking-wide rounded-none"
-                                    >
-                                        Enum
-                                    </TabsTrigger>
-                                </TabsList>
-
-                                <TabsContent value="standard" className="space-y-4 mt-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-medium text-zinc-100">Category</Label>
-                                            <Select
-                                                value={selectedCategory}
-                                                onValueChange={(value) => {
-                                                    setSelectedCategory(value);
-                                                    setSelectedType(POSTGRESQL_TYPES[value as keyof typeof POSTGRESQL_TYPES][0]);
-                                                }}
-                                            >
-                                                <SelectTrigger className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 focus:border-white rounded-none">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-zinc-900 border-2 border-white rounded-none">
-                                                    {Object.keys(POSTGRESQL_TYPES).map(category => (
-                                                        <SelectItem key={category} value={category} className="text-zinc-100 focus:bg-zinc-800 rounded-none">
-                                                            {category}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-medium text-zinc-100">Type</Label>
-                                            <Select value={selectedType} onValueChange={setSelectedType}>
-                                                <SelectTrigger className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 focus:border-white rounded-none">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-zinc-900 border-2 border-white rounded-none">
-                                                    {POSTGRESQL_TYPES[selectedCategory as keyof typeof POSTGRESQL_TYPES].map(type => (
-                                                        <SelectItem key={type} value={type} className="text-zinc-100 focus:bg-zinc-800 rounded-none">
-                                                            {type}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    {/* Type-specific options */}
-                                    {(needsLength || needsPrecisionScale) && (
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {needsLength && (
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium text-zinc-100">Length</Label>
-                                                    <Input
-                                                        type="number"
-                                                        value={length}
-                                                        onChange={(e) => setLength(e.target.value)}
-                                                        placeholder="255"
-                                                        className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
-                                                    />
-                                                </div>
-                                            )}
-                                            {needsPrecisionScale && (
-                                                <>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-sm font-medium text-zinc-100">Precision</Label>
-                                                        <Input
-                                                            type="number"
-                                                            value={precision}
-                                                            onChange={(e) => setPrecision(e.target.value)}
-                                                            placeholder="10"
-                                                            className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-sm font-medium text-zinc-100">Scale</Label>
-                                                        <Input
-                                                            type="number"
-                                                            value={scale}
-                                                            onChange={(e) => setScale(e.target.value)}
-                                                            placeholder="2"
-                                                            className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
-                                                        />
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </TabsContent>
-
-                                <TabsContent value="enum" className="space-y-4 mt-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium text-zinc-100">Enum Values</Label>
-                                        <Textarea
-                                            value={enumValues}
-                                            onChange={(e) => setEnumValues(e.target.value)}
-                                            placeholder="active, inactive, pending"
-                                            rows={3}
-                                            className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white resize-none rounded-none"
-                                        />
-                                        <p className="text-xs text-zinc-400">Separate values with commas</p>
-                                    </div>
-                                </TabsContent>
-                            </Tabs>
-                        </div>
-
-                        {/* Constraints */}
-                        <div className="space-y-4">
-                            <Label className="text-sm font-semibold text-zinc-100 uppercase tracking-wide">Constraints</Label>
-                            <div className="space-y-3">
-                                <div className="flex items-center space-x-3 p-3 bg-zinc-800 border border-zinc-700">
-                                    <Checkbox
-                                        id="primary-key"
-                                        checked={isPrimary}
-                                        onCheckedChange={(checked) => {
-                                            setIsPrimary(!!checked);
-                                            if (checked) {
-                                                setIsNullable(false);
-                                                setIsUnique(true);
-                                            }
-                                        }}
-                                        className="border-2 border-zinc-500 data-[state=checked]:bg-white data-[state=checked]:border-white rounded-none"
-                                    />
-                                    <div>
-                                        <Label htmlFor="primary-key" className="text-sm font-medium text-zinc-100">Primary Key</Label>
-                                        <p className="text-xs text-zinc-400">Unique identifier</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex items-center space-x-3 p-3 bg-zinc-800 border border-zinc-700">
-                                        <Checkbox
-                                            id="unique"
-                                            checked={isUnique}
-                                            onCheckedChange={(checked) => setIsUnique(!!checked)}
-                                            className="border-2 border-zinc-500 data-[state=checked]:bg-white data-[state=checked]:border-white rounded-none"
-                                        />
-                                        <div>
-                                            <Label htmlFor="unique" className="text-sm font-medium text-zinc-100">Unique</Label>
-                                            <p className="text-xs text-zinc-400">No duplicates</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3 p-3 bg-zinc-800 border border-zinc-700">
-                                        <Checkbox
-                                            id="nullable"
-                                            checked={isNullable}
-                                            disabled={isPrimary}
-                                            onCheckedChange={(checked) => setIsNullable(!!checked)}
-                                            className="border-2 border-zinc-500 data-[state=checked]:bg-white data-[state=checked]:border-white disabled:opacity-50 rounded-none"
-                                        />
-                                        <div>
-                                            <Label htmlFor="nullable" className="text-sm font-medium text-zinc-100">Nullable</Label>
-                                            <p className="text-xs text-zinc-400">Allow null</p>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div>
+                                <Label htmlFor="array-type" className="text-sm font-medium text-white">Array Type</Label>
+                                <p className="text-xs text-gray-400">Make this field an array (e.g., text[])</p>
                             </div>
                         </div>
+                    </div>
 
-                        {/* Advanced Options */}
+                    {/* Constraints */}
+                    <div className="space-y-4">
+                        <Label className="text-sm font-medium text-white">Constraints</Label>
+                        <div className="space-y-2">
+                            <ConstraintSelector
+                                value={constraints}
+                                onChange={setConstraints}
+                                excludeForeignKey
+                            />
+                            <p className="text-xs text-gray-400">Select constraint types for this field</p>
+                        </div>
+                    </div>
+
+                    {/* Advanced Options */}
+                    <div className="space-y-4">
+                        <Label className="text-sm font-medium text-white">Advanced Options</Label>
                         <div className="space-y-4">
-                            <Label className="text-sm font-semibold text-zinc-100 uppercase tracking-wide">Advanced</Label>
-                            <div className="space-y-3">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-medium text-zinc-300">Default (preset)</Label>
-                                    <Select value={presetValue} onValueChange={handleDefaultPresetChange}>
-                                        <SelectTrigger className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 focus:border-white rounded-none">
-                                            <SelectValue placeholder="Choose a preset" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-zinc-900 border-2 border-white rounded-none">
-                                            {presetOptions.map((opt) => (
-                                                <SelectItem key={opt.label + opt.value} value={opt.value} className="text-zinc-100 focus:bg-zinc-800 rounded-none">
-                                                    {opt.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="default-value" className="text-xs font-medium text-zinc-300">Default Value</Label>
-                                    <Input
-                                        id="default-value"
-                                        value={defaultValue}
-                                        onChange={(e) => setDefaultValue(e.target.value)}
-                                        placeholder="now(), gen_random_uuid()"
-                                        className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white text-sm rounded-none"
-                                    />
-                                    <p className="text-[10px] text-zinc-500">Use SQL literals (e.g., &apos;text&apos;, 0, true) or functions (e.g., now(), gen_random_uuid()).</p>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="check-constraint" className="text-xs font-medium text-zinc-300">Check Constraint</Label>
-                                    <Input
-                                        id="check-constraint"
-                                        value={checkConstraint}
-                                        onChange={(e) => setCheckConstraint(e.target.value)}
-                                        placeholder="price > 0"
-                                        className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white text-sm rounded-none"
-                                    />
-                                </div>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-white">Default Value Preset</Label>
+                                <Select value={presetValue} onValueChange={handleDefaultPresetChange}>
+                                    <SelectTrigger className="bg-black border border-white/30 text-white focus:border-white rounded-lg">
+                                        <SelectValue placeholder="Choose a preset" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-black border border-white/30 rounded-lg">
+                                        {presetOptions.map((opt) => (
+                                            <SelectItem key={opt.label + opt.value} value={opt.value} className="text-white focus:bg-white/10 rounded-md">
+                                                {opt.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="default-value" className="text-sm font-medium text-white">Custom Default Value</Label>
+                                <Input
+                                    id="default-value"
+                                    value={defaultValue}
+                                    onChange={(e) => setDefaultValue(e.target.value)}
+                                    placeholder="now(), gen_random_uuid(), 'default'"
+                                    className="bg-black border border-white/30 text-white placeholder:text-gray-400 focus:border-white rounded-lg"
+                                />
+                                <p className="text-xs text-gray-400">Use SQL literals or functions</p>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
-                <DialogFooter className="border-t border-zinc-700 pt-4">
+                <DialogFooter className="border-t border-white/20 pt-4 mt-6">
                     <div className="flex gap-3 w-full">
                         <Button
                             variant="outline"
                             onClick={onClose}
-                            className="flex-1 bg-zinc-800 border-2 border-zinc-600 text-zinc-100 hover:bg-zinc-700 font-medium uppercase tracking-wide rounded-none"
+                            className="flex-1 bg-black border border-white/30 text-white hover:bg-white/10 rounded-lg"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleSave}
-                            className="flex-1 bg-white hover:bg-zinc-200 text-black font-medium uppercase tracking-wide rounded-none"
+                            className="flex-1 bg-white hover:bg-gray-100 text-black rounded-lg"
                         >
                             {mode === 'edit' ? 'Update' : 'Create'}
                         </Button>
