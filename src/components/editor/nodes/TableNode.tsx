@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react';
 import { FieldDialog } from './FieldDialog';
 import { Field, TableNodeData } from './types/Field';
 
+// Define the TableNodeProps type
+export type TableNodeProps = {
+    data: TableNodeData;
+    id: string;
+    selected?: boolean;
+};
+
 export const TableNode = ({
     data,
     id,
     selected = false,
-}: {
-    data: TableNodeData;
-    id: string;
-    selected?: boolean;
-}) => {
+}: TableNodeProps) => {
     const [tableName, setTableName] = useState(data.name);
     const [isEditing, setIsEditing] = useState(false);
     const [showFieldDialog, setShowFieldDialog] = useState(false);
