@@ -49,17 +49,17 @@ export function DataTypeSelector({
 
   const handleTypeChange = (newType: string) => {
     setSelectedType(newType);
-    
+
     // Determine if type needs parameters
     const needsLength = ['varchar', 'char'].includes(newType);
     const needsPrecisionScale = ['numeric', 'decimal'].includes(newType);
-    
-    
+
+
     // Call onChange with appropriate parameters
     const lengthValue = needsLength && typeLength ? parseInt(typeLength) : undefined;
     const precisionValue = needsPrecisionScale && typePrecision ? parseInt(typePrecision) : undefined;
     const scaleValue = needsPrecisionScale && typeScale ? parseInt(typeScale) : undefined;
-    
+
     onChange(newType, lengthValue, precisionValue, scaleValue);
   };
 
@@ -67,7 +67,7 @@ export function DataTypeSelector({
     const lengthValue = typeLength ? parseInt(typeLength) : undefined;
     const precisionValue = typePrecision ? parseInt(typePrecision) : undefined;
     const scaleValue = typeScale ? parseInt(typeScale) : undefined;
-    
+
     onChange(selectedType, lengthValue, precisionValue, scaleValue);
   };
 
@@ -100,10 +100,9 @@ export function DataTypeSelector({
             ))}
           </SelectContent>
         </Select>
-        
+
         {(needsLength || needsPrecisionScale) && (
-          <div className="flex items-center gap-0.5">
-            <span className="text-zinc-400 text-xs">(</span>
+          <div className="flex items-center gap-1 ">
             {needsLength && (
               <Input
                 type="number"
@@ -113,7 +112,7 @@ export function DataTypeSelector({
                   setTimeout(handleParameterChange, 100);
                 }}
                 placeholder="255"
-                className="w-12 h-6 px-1 text-xs border-zinc-600 bg-zinc-800 text-white"
+                className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
               />
             )}
             {needsPrecisionScale && (
@@ -126,9 +125,9 @@ export function DataTypeSelector({
                     setTimeout(handleParameterChange, 100);
                   }}
                   placeholder="10"
-                  className="w-10 h-6 px-1 text-xs border-zinc-600 bg-zinc-800 text-white"
+                  className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                 />
-                <span className="text-zinc-400 text-xs">,</span>
+                <span className="text-zinc-400 text-xs">**</span>
                 <Input
                   type="number"
                   value={typeScale}
@@ -137,11 +136,10 @@ export function DataTypeSelector({
                     setTimeout(handleParameterChange, 100);
                   }}
                   placeholder="2"
-                  className="w-10 h-6 px-1 text-xs border-zinc-600 bg-zinc-800 text-white"
+                  className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                 />
               </>
             )}
-            <span className="text-zinc-400 text-xs">)</span>
           </div>
         )}
       </div>
@@ -267,7 +265,7 @@ export function TypeInfoBadge({ type, length, precision, scale }: {
   scale?: number;
 }) {
   const formattedType = formatDataType(type, length, precision, scale);
-  
+
   return (
     <Badge variant="outline" className="text-xs font-mono bg-zinc-800 border-zinc-600 text-zinc-300">
       {formattedType}

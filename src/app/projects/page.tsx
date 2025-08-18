@@ -7,9 +7,12 @@ import {
     Filter,
     Grid2X2 as Grid,
     Rows as List,
+    Import,
     Plus,
     Search,
     Trash2,
+    Database as DatabaseIcon,
+    ArrowUpDown,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -65,16 +68,21 @@ interface Project {
 
 type SortOption = "updatedDesc" | "createdDesc" | "nameAsc"
 
-async function createProject(name: string): Promise<Project> {
+async function createProject(name: string, description?: string, type?: string): Promise<Project> {
     const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, schema: { nodes: [], edges: [] } }),
+        body: JSON.stringify({ 
+            name, 
+            schema: { nodes: [], edges: [] },
+            description: description || null,
+            type: type || null
+        }),
     })
     if (!response.ok) throw new Error("Failed to create project")
     return response.json()
 }
-
+    
 export default function ProjectsPage() {
     const router = useRouter()
     const [projects, setProjects] = useState<Project[]>([])
@@ -88,6 +96,8 @@ export default function ProjectsPage() {
     const [isDeleteOpen, setIsDeleteOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
     const [newProjectName, setNewProjectName] = useState("Untitled project")
+    const [newProjectDescription, setNewProjectDescription] = useState("")
+    const [newProjectType, setNewProjectType] = useState<"RELATIONAL" | "NOSQL" | "HYBRID" | "">("")
 
     useEffect(() => {
         void fetchProjects()
@@ -112,9 +122,17 @@ export default function ProjectsPage() {
     async function handleCreateProject(customName?: string) {
         try {
             const projectName = (customName ?? newProjectName ?? "Untitled project").trim()
-            const newProject = await createProject(projectName || `New Project ${new Date().toISOString()}`)
+            const newProject = await createProject(
+                projectName || `New Project ${new Date().toISOString()}`,
+                newProjectDescription.trim() || undefined,
+                newProjectType || undefined
+            )
             await fetchProjects()
             setIsCreateOpen(false)
+            // Reset form fields
+            setNewProjectName("Untitled project")
+            setNewProjectDescription("")
+            setNewProjectType("")
             toast.success("Project created")
             router.push(`/projects/${newProject.id}/editor`)
         } catch (err) {
@@ -205,32 +223,69 @@ export default function ProjectsPage() {
                                 </SignInButton>
                             </SignedOut>
                             <SignedIn>
-                                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button size="lg">
-                                            <Plus /> New project
+                                <div className="flex gap-2">
+                                    <Link href="/import">
+                                        <Button size="lg" variant="outline">
+                                            <Import className="mr-2 h-4 w-4" />
+                                            Import Database
                                         </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                        <DialogHeader>
-                                            <DialogTitle>Create a new project</DialogTitle>
-                                            <DialogDescription>Give your project a clear, descriptive name.</DialogDescription>
-                                        </DialogHeader>
-                                        <div className="space-y-2">
-                                            <label className="text-sm">Project name</label>
-                                            <Input
-                                                autoFocus
-                                                value={newProjectName}
-                                                onChange={(e) => setNewProjectName(e.target.value)}
-                                                placeholder="e.g. E‑commerce database"
-                                            />
-                                        </div>
-                                        <DialogFooter>
-                                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                                            <Button onClick={() => void handleCreateProject()}>Create</Button>
-                                        </DialogFooter>
-                                    </DialogContent>
-                                </Dialog>
+                                    </Link>
+                                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="lg">
+                                                <Plus /> New project
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>Create a new project</DialogTitle>
+                                                <DialogDescription>Give your project a clear, descriptive name and optional details.</DialogDescription>
+                                            </DialogHeader>
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium">Project name *</label>
+                                                    <Input
+                                                        autoFocus
+                                                        value={newProjectName}
+                                                        onChange={(e) => setNewProjectName(e.target.value)}
+                                                        placeholder="e.g. E‑commerce database"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium">Database type</label>
+                                                    <Select value={newProjectType} onValueChange={(value) => setNewProjectType(value as typeof newProjectType)}>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select database type" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="RELATIONAL">Relational (SQL)</SelectItem>
+                                                            <SelectItem value="NOSQL">NoSQL</SelectItem>
+                                                            <SelectItem value="HYBRID">Hybrid</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium">Description</label>
+                                                    <Input
+                                                        value={newProjectDescription}
+                                                        onChange={(e) => setNewProjectDescription(e.target.value)}
+                                                        placeholder="Brief description of your project (optional)"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button variant="outline" onClick={() => {
+                                                    setIsCreateOpen(false)
+                                                    // Reset form fields
+                                                    setNewProjectName("Untitled project")
+                                                    setNewProjectDescription("")
+                                                    setNewProjectType("")
+                                                }}>Cancel</Button>
+                                                <Button onClick={() => void handleCreateProject()}>Create</Button>
+                                                </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
                             </SignedIn>
                         </div>
                     </div>
@@ -249,8 +304,14 @@ export default function ProjectsPage() {
                                     />
                                 </div>
                                 <Select value={filterType} onValueChange={(v) => setFilterType(v as typeof filterType)}>
-                                    <SelectTrigger aria-label="Filter by project type">
-                                        <SelectValue placeholder="Type" />
+                                    <SelectTrigger aria-label="Filter by project type" className="w-[140px]">
+                                        <DatabaseIcon className="mr-2 h-4 w-4" />
+                                        <SelectValue>
+                                            {filterType === "ALL" ? "All types" : 
+                                             filterType === "RELATIONAL" ? "Relational" :
+                                             filterType === "NOSQL" ? "NoSQL" :
+                                             filterType === "HYBRID" ? "Hybrid" : "Type"}
+                                        </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="ALL">All types</SelectItem>
@@ -260,8 +321,13 @@ export default function ProjectsPage() {
                                     </SelectContent>
                                 </Select>
                                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                                    <SelectTrigger aria-label="Sort projects">
-                                        <SelectValue />
+                                    <SelectTrigger aria-label="Sort projects" className="w-[160px]">
+                                        <ArrowUpDown className="mr-2 h-4 w-4" />
+                                        <SelectValue>
+                                            {sortBy === "updatedDesc" ? "Recently updated" :
+                                             sortBy === "createdDesc" ? "Recently created" :
+                                             sortBy === "nameAsc" ? "Name A→Z" : "Sort by"}
+                                        </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="updatedDesc">Recently updated</SelectItem>

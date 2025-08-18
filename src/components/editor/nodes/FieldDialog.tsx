@@ -155,7 +155,7 @@ export const FieldDialog = ({
     mode = 'add'
 }: FieldDialogProps) => {
     const [fieldName, setFieldName] = useState("");
-    const [selectedType, setSelectedType] = useState("varchar");
+    const [selectedType, setSelectedType] = useState("text");
     const [length, setLength] = useState("");
     const [precision, setPrecision] = useState("");
     const [scale, setScale] = useState("");
@@ -193,7 +193,7 @@ export const FieldDialog = ({
                 setConstraints(fieldConstraints);
             } else {
                 setFieldName("");
-                setSelectedType("varchar");
+                setSelectedType("text");
                 setLength("");
                 setPrecision("");
                 setScale("");

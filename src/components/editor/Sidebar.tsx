@@ -1,11 +1,16 @@
 "use client";
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
-import type { Edge, Node } from '@xyflow/react';
-import type { TableNodeData } from './nodes/types/Field';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { convertSchema, type SchemaFormat } from './utils/convertSchema';
 import {
     SidebarContent,
     SidebarGroup,
@@ -15,22 +20,17 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { Table, GitBranch, Code, ArrowLeft, Copy, Download, Search, Trash2, Check } from 'lucide-react';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import type { Edge, Node } from '@xyflow/react';
+import { ArrowLeft, Check, Code, Copy, Download, GitBranch, Layout, Search, Table, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
-import vscDarkPlus from 'react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus';
-import dracula from 'react-syntax-highlighter/dist/esm/styles/prism/dracula';
 import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import dracula from 'react-syntax-highlighter/dist/esm/styles/prism/dracula';
+import vscDarkPlus from 'react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus';
+import type { TableNodeData } from './nodes/types/Field';
+import { convertSchema, type SchemaFormat } from './utils/convertSchema';
 
 // Register a minimal set of languages for highlighting
 let prismLanguagesRegistered = false;
@@ -45,11 +45,21 @@ type EditorSidebarProps = {
     edges: Edge[];
     onSelectTable?: (tableId: string) => void;
     onRemoveConnection?: (targetTableId: string, foreignKeyField: string) => void;
+    onApplyLayout?: (layoutType: string) => void;
+    onAutoArrange?: () => void;
+    onFitToView?: () => void;
+    currentLayout?: string;
+    isApplyingLayout?: boolean;
 };
 
-export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection }: EditorSidebarProps) {
+export function EditorSidebar({
+    nodes,
+    edges,
+    onSelectTable,
+    onRemoveConnection,
+}: EditorSidebarProps) {
     const [format, setFormat] = useState<SchemaFormat>('sql');
-    const [activeTab, setActiveTab] = useState<'tables' | 'connections' | 'preview'>('tables');
+    const [activeTab, setActiveTab] = useState<'tables' | 'connections' | 'preview' | 'layout'>('tables');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [tableQuery, setTableQuery] = useState('');
     const [copied, setCopied] = useState(false);
@@ -129,14 +139,17 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
                                         {activeTab === 'tables' && <Table className="h-4 w-4" />}
                                         {activeTab === 'connections' && <GitBranch className="h-4 w-4" />}
                                         {activeTab === 'preview' && <Code className="h-4 w-4" />}
+                                        {activeTab === 'layout' && <Layout className="h-4 w-4" />}
                                         {activeTab === 'tables' && 'Tables'}
                                         {activeTab === 'connections' && 'Connections'}
                                         {activeTab === 'preview' && 'Preview'}
+                                        {activeTab === 'layout' && 'Layout'}
                                     </DialogTitle>
                                     <DialogDescription>
                                         {activeTab === 'tables' && 'Browse and quickly jump to a table.'}
                                         {activeTab === 'connections' && 'Inspect relationships between tables.'}
                                         {activeTab === 'preview' && 'Generate and copy the schema for your stack.'}
+                                        {activeTab === 'layout' && 'Arrange tables using different layout algorithms.'}
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -326,4 +339,3 @@ export function EditorSidebar({ nodes, edges, onSelectTable, onRemoveConnection 
         </>
     );
 }
-

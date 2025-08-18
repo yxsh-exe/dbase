@@ -1,33 +1,46 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AddTableDrawer } from '@/components/editor/AddTableDrawer';
+import { TableNode, TableNodeProps } from '@/components/editor/nodes/TableNode';
+import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
+import { EditorSidebar } from '@/components/editor/Sidebar';
+import { ValidationDialog } from '@/components/editor/ValidationDialog';
+import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { Sidebar as ShadcnSidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import {
-    addEdge,
+    CreateRelationshipCommand,
+    CreateTableCommand,
+    DeleteRelationshipCommand,
+    DeleteTableCommand,
+    MoveTableCommand,
+    UpdateTableCommand,
+    useUndo,
+} from '@/hooks/useUndo';
+import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import {
+    applyEdgeChanges,
+    applyNodeChanges,
     Background,
-    ConnectionLineType,
     Connection,
+    ConnectionLineType,
     Controls,
     Edge,
+    EdgeChange,
     MarkerType,
     MiniMap,
     Node,
-    ReactFlow,
-    useEdgesState,
-    useNodesState,
+    NodeChange,
+    ReactFlow
 } from '@xyflow/react';
-import { toast } from 'react-hot-toast';
 import '@xyflow/react/dist/style.css';
-import { Database, LinkIcon, Plus, Save } from 'lucide-react';
+import { BadgeCheck, Database, Diamond, Download, Fingerprint, Hash, Key, Keyboard, LinkIcon, Plus, Redo, Save, Undo } from 'lucide-react';
 import Link from 'next/link';
-import { TableNode } from '@/components/editor/nodes/TableNode';
-import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
-import { AddTableDrawer } from '@/components/editor/AddTableDrawer';
-import { Key, Hash, Fingerprint, Diamond } from 'lucide-react';
-import { EditorSidebar } from '@/components/editor/Sidebar';
-import { SidebarProvider, Sidebar as ShadcnSidebar, SidebarInset } from '@/components/ui/sidebar';
-import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { validateSchema, ValidationResult } from '@/lib/validation';
 
 const nodeTypes = {
-    table: TableNode,
+    table: (props: TableNodeProps) => <TableNode {...props} />,
 } as const;
 
 export default function ModernSchemaEditor({ params }: { params: Promise<{ id: string }> }) {
@@ -42,13 +55,87 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
         referenceType: 'foreign_key' | string;
     };
 
-    const [nodes, setNodes, onNodesChange] = useNodesState<Node<TableNodeData>>([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ReferenceEdgeData>>([]);
-    const [nextTableId, setNextTableId] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [isAddTableOpen, setIsAddTableOpen] = useState(false);
+    const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+    const [isValidationDialogOpen, setIsValidationDialogOpen] = useState(false);
+    const [validationResults, setValidationResults] = useState<ValidationResult | null>(null);
 
-    // Resolve params asynchronously
+    // Initialize the undo system
+    const {
+        state,
+        executeCommand,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
+        updateState
+    } = useUndo({
+        nodes: [],
+        edges: [],
+        nextTableId: 1
+    });
+
+    const { nodes, edges, nextTableId } = state;
+
+    // Get selected table for delete operations
+    const selectedTable = useMemo(() => {
+        return nodes.find(node => node.selected);
+    }, [nodes]);
+
+    // Export schema function
+    const handleExportSchema = useCallback(() => {
+        const schemaData = {
+            nodes,
+            edges,
+            metadata: {
+                exportedAt: new Date().toISOString(),
+                version: '1.0.0',
+            },
+        };
+
+        const dataStr = JSON.stringify(schemaData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `schema-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success('Schema exported successfully');
+    }, [nodes, edges]);
+
+    // Validation function
+    const handleValidateSchema = useCallback(() => {
+        const results = validateSchema(nodes);
+        setValidationResults(results);
+    }, [nodes]);
+
+    // Run validation whenever nodes change
+    useEffect(() => {
+        if (nodes.length > 0) {
+            const results = validateSchema(nodes);
+            setValidationResults(results);
+        }
+    }, [nodes]);
+
+
+    // Cancel operation function
+    const handleCancelOperation = useCallback(() => {
+        // Close any open modals/drawers
+        setIsAddTableOpen(false);
+        setIsShortcutsModalOpen(false);
+
+        // Clear any selections
+        const clearedNodes = nodes.map(node => ({ ...node, selected: false }));
+        updateState({ ...state, nodes: clearedNodes });
+    }, [nodes, state, updateState]);
+
+    // Load schema data
     useEffect(() => {
         const loadParams = async () => {
             const unwrappedParams = await params;
@@ -76,15 +163,17 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                         },
                     }));
 
-                    setNodes(processedNodes);
                     const processedEdges = (savedEdges || []) as Edge<ReferenceEdgeData>[];
-                    setEdges(processedEdges);
-
                     const maxId = Math.max(
                         0,
                         ...processedNodes.map((node: Node<TableNodeData>) => parseInt(node.id.split('-')[1] || '0'))
                     );
-                    setNextTableId(maxId + 1);
+
+                    updateState({
+                        nodes: processedNodes,
+                        edges: processedEdges,
+                        nextTableId: maxId + 1
+                    });
 
                     toast.success('Schema loaded successfully');
                 }
@@ -96,9 +185,35 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             }
         };
         loadParams();
-    }, [params, setNodes, setEdges]);
+    }, [params, updateState]);
 
+    // Handle node changes (like dragging)
+    const onNodesChange = useCallback((changes: NodeChange[]) => {
+        const positionChanges = changes.filter(change => change.type === 'position' && change.dragging === false);
 
+        if (positionChanges.length > 0) {
+            // Create undo commands for position changes
+            positionChanges.forEach(change => {
+                if (change.type === 'position' && change.position) {
+                    const moveCommand = new MoveTableCommand(
+                        change.id,
+                        change.position
+                    );
+                    executeCommand(moveCommand);
+                }
+            });
+        } else {
+            // Apply other changes directly (like selection)
+            const newNodes = applyNodeChanges(changes, nodes) as Node<TableNodeData>[];
+            updateState({ ...state, nodes: newNodes });
+        }
+    }, [nodes, state, executeCommand, updateState]);
+
+    // Handle edge changes
+    const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+        const newEdges = applyEdgeChanges(changes, edges);
+        updateState({ ...state, edges: newEdges });
+    }, [edges, state, updateState]);
 
     const createTableReference = useCallback(
         (sourceTableId: string, destinationTableId: string) => {
@@ -159,30 +274,6 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 referencedField: sourcePrimaryKey.name,
             };
 
-            // Add foreign key field to destination table
-            setNodes((nds) =>
-                nds.map((node) => {
-                    if (node.id !== destinationTableId) return node;
-
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            fields: [...node.data.fields, foreignKeyField],
-                            references: [
-                                ...(node.data.references || []),
-                                {
-                                    sourceTableId,
-                                    sourceTableName: sourceTable.data.name,
-                                    foreignKeyField: foreignKeyFieldName,
-                                    referencedField: sourcePrimaryKey.name,
-                                },
-                            ],
-                        },
-                    };
-                })
-            );
-
             // Create edge from source primary key to destination foreign key
             const newEdge: Edge<ReferenceEdgeData> = {
                 id: `ref-${sourceTableId}-${destinationTableId}-${Date.now()}`,
@@ -212,22 +303,24 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 },
             };
 
-            setEdges((eds) => addEdge(newEdge, eds));
+            // Execute create relationship command
+            const command = new CreateRelationshipCommand(newEdge, foreignKeyField, destinationTableId);
+            executeCommand(command);
+
             toast.success(`Created foreign key "${foreignKeyFieldName}" in ${destinationTable.data.name}`);
         },
-        [nodes, edges, setNodes, setEdges]
+        [nodes, edges, executeCommand]
     );
 
     const handleTableClick = useCallback(
         (tableId: string) => {
-            setNodes((nds) =>
-                nds.map((node) => ({
-                    ...node,
-                    selected: node.id === tableId,
-                }))
-            );
+            const newNodes = nodes.map((node) => ({
+                ...node,
+                selected: node.id === tableId,
+            }));
+            updateState({ ...state, nodes: newNodes });
         },
-        [setNodes]
+        [nodes, state, updateState]
     );
 
     const handleConnect = useCallback(
@@ -241,264 +334,114 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
 
     const handleUpdateTable = useCallback(
         (tableId: string, updatedData: Partial<TableNodeData>) => {
-            setNodes((nds) =>
-                nds.map((node) =>
-                    node.id === tableId
-                        ? {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                ...updatedData,
-                            },
-                        }
-                        : node
-                )
-            );
+            const command = new UpdateTableCommand(tableId, updatedData);
+            executeCommand(command);
         },
-        [setNodes]
+        [executeCommand]
     );
 
     const handleRemoveTable = useCallback(
         (tableId: string) => {
             const nodeToDelete = nodes.find((n) => n.id === tableId);
-            const deletedTableName = nodeToDelete?.data.name;
-
             if (!nodeToDelete) {
                 toast.error('Table not found');
                 return;
             }
 
-            // Collect information about what will be cleaned up
-            const cleanupSummary = {
-                removedFields: [] as string[],
-                removedReferences: [] as string[],
-                affectedTables: [] as string[]
-            };
+            // Find related edges
+            const relatedEdges = edges.filter((e) => e.source === tableId || e.target === tableId);
 
-            // 1) Remove the node itself and cascade-clean remaining nodes
-            setNodes((existingNodes) => {
-                const remainingNodes = existingNodes.filter((n) => n.id !== tableId);
+            const command = new DeleteTableCommand(tableId, nodeToDelete, relatedEdges);
+            executeCommand(command);
 
-                return remainingNodes.map((n) => {
-                    let updatedFields = n.data.fields;
-                    let updatedReferences = n.data.references || [];
-                    let hasChanges = false;
-
-                    // Remove references pointing to the deleted source table
-                    const foreignKeyFieldsToRemove = new Set<string>();
-                    const originalReferencesLength = updatedReferences.length;
-                    
-                    updatedReferences = updatedReferences.filter((ref) => {
-                        const shouldRemove =
-                            ref.sourceTableId === tableId ||
-                            (deletedTableName ? ref.sourceTableName === deletedTableName : false);
-                        if (shouldRemove) {
-                            foreignKeyFieldsToRemove.add(ref.foreignKeyField);
-                            cleanupSummary.removedReferences.push(`${n.data.name}.${ref.foreignKeyField} → ${deletedTableName}`);
-                        }
-                        return !shouldRemove;
-                    });
-
-                    if (updatedReferences.length !== originalReferencesLength) {
-                        hasChanges = true;
-                    }
-
-                    // Remove FK fields that correspond to removed references
-                    if (foreignKeyFieldsToRemove.size > 0) {
-                        const originalFieldsLength = updatedFields.length;
-                        updatedFields = updatedFields.filter((f) => {
-                            const shouldRemove = foreignKeyFieldsToRemove.has(f.name);
-                            if (shouldRemove) {
-                                cleanupSummary.removedFields.push(`${n.data.name}.${f.name}`);
-                            }
-                            return !shouldRemove;
-                        });
-                        
-                        if (updatedFields.length !== originalFieldsLength) {
-                            hasChanges = true;
-                        }
-                    }
-
-                    // Safety: also remove any FK fields that explicitly reference the deleted table by name
-                    if (deletedTableName) {
-                        const fieldsBeforeCleanup = updatedFields.length;
-                        updatedFields = updatedFields.filter((f) => {
-                            const shouldRemove = f.foreign && f.referencedTable === deletedTableName;
-                            if (shouldRemove) {
-                                cleanupSummary.removedFields.push(`${n.data.name}.${f.name} (orphaned FK)`);
-                            }
-                            return !shouldRemove;
-                        });
-
-                        if (updatedFields.length !== fieldsBeforeCleanup) {
-                            hasChanges = true;
-                        }
-                    }
-
-                    // Enhanced constraint cleanup - remove foreign key constraints that reference deleted table
-                    updatedFields = updatedFields.map(field => {
-                        if (field.constraints) {
-                            const originalConstraints = field.constraints.length;
-                            const cleanedConstraints = field.constraints.filter(constraint => {
-                                const shouldRemove = constraint.type === 'foreign_key' &&
-                                                   constraint.referencedTable === deletedTableName;
-                                if (shouldRemove) {
-                                    cleanupSummary.removedReferences.push(`${n.data.name}.${field.name} constraint → ${deletedTableName}`);
-                                }
-                                return !shouldRemove;
-                            });
-
-                            if (cleanedConstraints.length !== originalConstraints) {
-                                hasChanges = true;
-                                return { ...field, constraints: cleanedConstraints };
-                            }
-                        }
-                        return field;
-                    });
-
-                    if (hasChanges && !cleanupSummary.affectedTables.includes(n.data.name)) {
-                        cleanupSummary.affectedTables.push(n.data.name);
-                    }
-
-                    return {
-                        ...n,
-                        data: {
-                            ...n.data,
-                            fields: updatedFields,
-                            references: updatedReferences,
-                        },
-                    };
-                });
-            });
-
-            // 2) Remove edges connected to the deleted table
-            const removedEdges = edges.filter((edge) => edge.source === tableId || edge.target === tableId);
-            setEdges((eds) => eds.filter((edge) => edge.source !== tableId && edge.target !== tableId));
-
-            // 3) Show detailed cleanup summary
-            let successMessage = `Table "${deletedTableName}" deleted successfully`;
-            if (cleanupSummary.affectedTables.length > 0) {
-                successMessage += `\n\nCascade cleanup completed:`;
-                
-                if (cleanupSummary.removedFields.length > 0) {
-                    successMessage += `\n• Removed ${cleanupSummary.removedFields.length} foreign key field(s)`;
-                }
-                
-                if (cleanupSummary.removedReferences.length > 0) {
-                    successMessage += `\n• Removed ${cleanupSummary.removedReferences.length} relationship(s)`;
-                }
-                
-                if (removedEdges.length > 0) {
-                    successMessage += `\n• Removed ${removedEdges.length} visual connection(s)`;
-                }
-
-                successMessage += `\n• Affected tables: ${cleanupSummary.affectedTables.join(', ')}`;
-            }
-
-            toast.success(successMessage, { duration: 6000 });
+            toast.success(`Table "${nodeToDelete.data.name}" deleted successfully`);
         },
-        [nodes, edges, setEdges, setNodes]
+        [nodes, edges, executeCommand]
     );
 
     const handleAddField = useCallback(
         (tableId: string, newField: Field) => {
-            setNodes((nds) =>
-                nds.map((node) =>
-                    node.id === tableId
-                        ? {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                fields: [...node.data.fields, newField],
-                            },
-                        }
-                        : node
-                )
-            );
+            const currentTable = nodes.find(n => n.id === tableId);
+            if (!currentTable) return;
+
+            const updatedData = {
+                fields: [...currentTable.data.fields, newField]
+            };
+            const command = new UpdateTableCommand(tableId, updatedData);
+            executeCommand(command);
         },
-        [setNodes]
+        [nodes, executeCommand]
     );
 
     const handleRemoveField = useCallback(
         (tableId: string, fieldIndex: number) => {
-            const fieldToRemove = nodes.find((n) => n.id === tableId)?.data.fields[fieldIndex];
+            const currentTable = nodes.find(n => n.id === tableId);
+            if (!currentTable) return;
 
-            // If removing a foreign key field, also remove the corresponding edge
+            const fieldToRemove = currentTable.data.fields[fieldIndex];
+            const updatedFields = currentTable.data.fields.filter((_, index) => index !== fieldIndex);
+
+            // If removing a foreign key field, also remove related edges
             if (fieldToRemove?.foreign) {
-                setEdges((eds) =>
-                    eds.filter((edge: Edge<ReferenceEdgeData>) => {
-                        return !(
-                            edge.target === tableId &&
-                            edge.data?.targetField === fieldToRemove?.name
-                        );
-                    })
+                const relatedEdge = edges.find(edge =>
+                    edge.target === tableId && edge.data?.targetField === fieldToRemove.name
                 );
+
+                if (relatedEdge) {
+                    const deleteRelCommand = new DeleteRelationshipCommand(relatedEdge, fieldToRemove, tableId);
+                    executeCommand(deleteRelCommand);
+                    toast.success(`Removed foreign key "${fieldToRemove.name}" and its relationship`);
+                    return;
+                }
             }
 
-            setNodes((nds) => {
-                const updatedNodes = nds.map((node) => {
-                    if (node.id !== tableId) return node;
-                    const updatedFields = node.data.fields.filter((_, index) => index !== fieldIndex);
-
-                    // Remove references related to this field
-                    const updatedReferences = (node.data.references || []).filter(
-                        (ref) => ref.foreignKeyField !== fieldToRemove?.name
-                    );
-
-                    return updatedFields.length === 0
-                        ? null
-                        : {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                fields: updatedFields,
-                                references: updatedReferences,
-                            },
-                        };
-                }).filter((node): node is Node<TableNodeData> => node !== null);
-                return updatedNodes;
-            });
-
-            if (fieldToRemove?.foreign) {
-                toast.success(`Removed foreign key "${fieldToRemove.name}" and its relationship`);
-            }
+            const updatedData = {
+                fields: updatedFields,
+                references: (currentTable.data.references || []).filter(
+                    (ref) => ref.foreignKeyField !== fieldToRemove?.name
+                )
+            };
+            const command = new UpdateTableCommand(tableId, updatedData);
+            executeCommand(command);
         },
-        [setNodes, setEdges, nodes]
+        [nodes, edges, executeCommand]
     );
 
     const handleUpdateField = useCallback(
         (tableId: string, fieldIndex: number, updatedField: Field) => {
-            setNodes((nds) =>
-                nds.map((node) =>
-                    node.id === tableId
-                        ? {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                fields: node.data.fields.map((field, idx) => (idx === fieldIndex ? updatedField : field)),
-                            },
-                        }
-                        : node
-                )
+            const currentTable = nodes.find(n => n.id === tableId);
+            if (!currentTable) return;
+
+            const updatedFields = currentTable.data.fields.map((field, idx) =>
+                idx === fieldIndex ? updatedField : field
             );
+            const updatedData = { fields: updatedFields };
+            const command = new UpdateTableCommand(tableId, updatedData);
+            executeCommand(command);
         },
-        [setNodes]
+        [nodes, executeCommand]
     );
 
     const nodesWithCallbacks = useMemo(() => {
-        return nodes.map((node) => ({
-            ...node,
-            data: {
-                ...node.data,
-                onUpdateTable: handleUpdateTable,
-                onRemoveTable: handleRemoveTable,
-                onAddField: handleAddField,
-                onRemoveField: handleRemoveField,
-                onUpdateField: handleUpdateField,
-                onTableClick: handleTableClick,
-            },
-        }));
-    }, [nodes, handleUpdateTable, handleRemoveTable, handleAddField, handleRemoveField, handleUpdateField, handleTableClick]);
+        return nodes.map((node) => {
+            // Get validation errors for this specific node
+            const nodeErrors = validationResults?.errors.filter(e => e.nodeId === node.id) || [];
+
+            return {
+                ...node,
+                data: {
+                    ...node.data,
+                    onUpdateTable: handleUpdateTable,
+                    onRemoveTable: handleRemoveTable,
+                    onAddField: handleAddField,
+                    onRemoveField: handleRemoveField,
+                    onUpdateField: handleUpdateField,
+                    onTableClick: handleTableClick,
+                },
+                validationErrors: nodeErrors
+            };
+        });
+    }, [nodes, handleUpdateTable, handleRemoveTable, handleAddField, handleRemoveField, handleUpdateField, handleTableClick, validationResults]);
 
     const MAX_TABLES = 50;
     const handleCreateTableFromDrawer = useCallback((table: { name: string; fields: Field[]; foreignKeys?: Array<{ fieldName: string; referencedTable: string; referencedField: string }> }) => {
@@ -509,7 +452,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
 
         const name = table.name.trim();
         if (!name) {
-            toast.error('Table name must be unique');
+            toast.error('Table name is required');
             return;
         }
         const isNameUnique = !nodes.some((node) => node.data.name === name);
@@ -519,34 +462,30 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
         }
 
         const newTableId = `table-${nextTableId}`;
-        const newNode: Node<TableNodeData> = {
-            id: newTableId,
-            type: 'table',
-            position: {
-                x: Math.random() * window.innerWidth * 0.5 + window.innerWidth * 0.1,
-                y: Math.random() * window.innerHeight * 0.5 + window.innerHeight * 0.1,
-            },
-            data: {
-                name,
-                fields: table.fields,
-                references: table.foreignKeys?.map(fk => {
-                    const sourceTable = nodes.find(n => n.data.name === fk.referencedTable);
-                    return {
-                        sourceTableId: sourceTable?.id || '',
-                        sourceTableName: fk.referencedTable,
-                        foreignKeyField: fk.fieldName,
-                        referencedField: fk.referencedField,
-                    };
-                }) || []
-            },
+        const position = {
+            x: Math.random() * window.innerWidth * 0.5 + window.innerWidth * 0.1,
+            y: Math.random() * window.innerHeight * 0.5 + window.innerHeight * 0.1,
         };
 
-        setNodes((nds) => nds.concat(newNode));
+        const tableData = {
+            id: newTableId,
+            name,
+            fields: table.fields,
+            position,
+            references: table.foreignKeys?.map(fk => {
+                const sourceTable = nodes.find(n => n.data.name === fk.referencedTable);
+                return {
+                    sourceTableId: sourceTable?.id || '',
+                    sourceTableName: fk.referencedTable,
+                    foreignKeyField: fk.fieldName,
+                    referencedField: fk.referencedField,
+                };
+            })
+        };
 
         // Create edges for foreign key relationships
+        const newEdges: Edge<ReferenceEdgeData>[] = [];
         if (table.foreignKeys && table.foreignKeys.length > 0) {
-            const newEdges: Edge<ReferenceEdgeData>[] = [];
-            
             table.foreignKeys.forEach(fk => {
                 const sourceTable = nodes.find(n => n.data.name === fk.referencedTable);
                 if (sourceTable) {
@@ -580,21 +519,28 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                     newEdges.push(newEdge);
                 }
             });
+        }
 
-            if (newEdges.length > 0) {
-                setEdges((eds) => [...eds, ...newEdges]);
-                toast.success(`Table "${name}" created with ${newEdges.length} foreign key relationship(s)`);
-            } else {
-                toast.success(`Table "${name}" created`);
-            }
+        const command = new CreateTableCommand(tableData, newEdges);
+        executeCommand(command);
+
+        if (newEdges.length > 0) {
+            toast.success(`Table "${name}" created with ${newEdges.length} foreign key relationship(s)`);
         } else {
             toast.success(`Table "${name}" created`);
         }
+    }, [nodes, nextTableId, executeCommand]);
 
-        setNextTableId((prev) => prev + 1);
-    }, [nodes, nextTableId, setNodes, setEdges]);
-
-    // Edge removal is handled implicitly when deleting foreign key fields
+    // Delete selected table function
+    const handleDeleteSelected = useCallback(() => {
+        if (selectedTable) {
+            handleRemoveTable(selectedTable.id);
+        } else {
+            toast('No table selected for deletion', {
+                icon: 'ℹ️',
+            });
+        }
+    }, [selectedTable, handleRemoveTable]);
 
     const handleSave = useCallback(async () => {
         try {
@@ -626,6 +572,18 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
         }
     }, [nodes, edges, params]);
 
+    // Keyboard shortcuts integration - must be after all function definitions
+    useKeyboardShortcuts({
+        onNewTable: () => setIsAddTableOpen(true),
+        onDeleteSelected: handleDeleteSelected,
+        onSave: handleSave,
+        onExportSchema: handleExportSchema,
+        onUndo: undo,
+        onRedo: redo,
+        onCancelOperation: handleCancelOperation,
+        onShowShortcutsHelp: () => setIsShortcutsModalOpen(true),
+    });
+
     if (isLoading) {
         return (
             <div className="h-screen flex items-center justify-center bg-zinc-950 text-zinc-100">
@@ -645,29 +603,30 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                     edges={edges}
                     onSelectTable={(id: string) => handleTableClick(id)}
                     onRemoveConnection={(targetTableId: string, foreignKeyField: string) => {
-                        // Remove matching edge(s)
-                        setEdges((eds) => eds.filter((e) => !(e.target === targetTableId && e.data?.targetField === foreignKeyField)));
+                        // Find the edge and field to remove
+                        const edgeToRemove = edges.find(e =>
+                            e.target === targetTableId && e.data?.targetField === foreignKeyField
+                        );
+                        const targetTable = nodes.find(n => n.id === targetTableId);
+                        const fieldToRemove = targetTable?.data.fields.find(f => f.name === foreignKeyField);
 
-                        // Remove FK field and reference entry from target table
-                        setNodes((nds) => nds.map((n) => {
-                            if (n.id !== targetTableId) return n;
-                            const fieldIndex = n.data.fields.findIndex((f) => f.name === foreignKeyField);
-                            if (fieldIndex === -1) return n;
-                            const updatedFields = n.data.fields.filter((_, idx) => idx !== fieldIndex);
-                            const updatedReferences = (n.data.references || []).filter((r) => r.foreignKeyField !== foreignKeyField);
-                            return {
-                                ...n,
-                                data: {
-                                    ...n.data,
-                                    fields: updatedFields,
-                                    references: updatedReferences,
-                                },
-                            };
-                        }));
+                        if (edgeToRemove && fieldToRemove) {
+                            const command = new DeleteRelationshipCommand(edgeToRemove, fieldToRemove, targetTableId);
+                            executeCommand(command);
+                        }
                     }}
                 />
                 {/** Rail removed in hover-to-expand UX */}
             </ShadcnSidebar>
+            <ValidationDialog
+                isOpen={isValidationDialogOpen}
+                onClose={() => setIsValidationDialogOpen(false)}
+                onSelectTable={(id: string) => {
+                    handleTableClick(id);
+                    setIsValidationDialogOpen(false);
+                }}
+                validationResults={validationResults || undefined}
+            />
             <SidebarInset className="bg-zinc-950 text-zinc-100 font-mono">
                 <header className="sticky top-0 mx-4 mt-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 z-20 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-6">
@@ -681,9 +640,60 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        {/* Keyboard Shortcuts Help Button */}
+                        <button
+                            onClick={() => setIsShortcutsModalOpen(true)}
+                            className="rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white p-2 transition-colors"
+                            title="Show keyboard shortcuts (Ctrl+H)"
+                        >
+                            <Keyboard className="h-4 w-4" />
+                        </button>
+
+                        {/* Validate Schema Button */}
+                        <button
+                            onClick={() => {
+                                handleValidateSchema();
+                                setIsValidationDialogOpen(true);
+                            }}
+                            className="rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white p-2 transition-colors"
+                            title="Validate schema"
+                        >
+                            <BadgeCheck className="h-4 w-4" />
+                        </button>
+
+                        {/* Export Schema Button */}
+                        <button
+                            onClick={handleExportSchema}
+                            className="rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white p-2 transition-colors"
+                            title="Export schema (Shift+E)"
+                        >
+                            <Download className="h-4 w-4" />
+                        </button>
+
+                        {/* Undo/Redo Buttons */}
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={undo}
+                                disabled={!canUndo}
+                                className="rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:hover:bg-zinc-800 text-white p-2 transition-colors"
+                                title="Undo (Shift+Z)"
+                            >
+                                <Undo className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={redo}
+                                disabled={!canRedo}
+                                className="rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:hover:bg-zinc-800 text-white p-2 transition-colors"
+                                title="Redo (Shift+Y)"
+                            >
+                                <Redo className="h-4 w-4" />
+                            </button>
+                        </div>
+
                         <button
                             onClick={() => setIsAddTableOpen(true)}
                             className="rounded-full bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
+                            title="Add new table (Shift+N)"
                         >
                             <Plus className="h-4 w-4 text-green-400" />
                             Add Table
@@ -700,6 +710,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <button
                                 onClick={handleSave}
                                 className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
+                                title="Save schema (Shift+S)"
                             >
                                 <Save className="h-4 w-4 text-white" />
                                 Save Schema
@@ -758,7 +769,6 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <LinkIcon className="h-4 w-4 flex-shrink-0 text-blue-400" />
                             Foreign key
                         </li>
-
                         <li className="flex items-center text-xs font-mono gap-1 text-zinc-300">
                             <Hash className="h-4 w-4 flex-shrink-0 text-green-400" />
                             Identity
@@ -782,6 +792,11 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                     onOpenChange={setIsAddTableOpen}
                     onCreate={handleCreateTableFromDrawer}
                     availableTables={nodes}
+                />
+
+                <KeyboardShortcutsModal
+                    isOpen={isShortcutsModalOpen}
+                    onClose={() => setIsShortcutsModalOpen(false)}
                 />
             </SidebarInset>
         </SidebarProvider>

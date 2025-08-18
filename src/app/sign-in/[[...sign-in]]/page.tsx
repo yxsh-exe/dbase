@@ -1,13 +1,11 @@
 "use client";
 import { SignIn } from '@clerk/nextjs';
-import { clerkAppearance } from '@/lib/clerk';
 
 export default function Page() {
     return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-background">
             <SignIn
                 routing="hash"
-                appearance={clerkAppearance}
             />
         </div>
     );
