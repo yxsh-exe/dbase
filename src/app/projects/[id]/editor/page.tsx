@@ -16,7 +16,8 @@ import {
     UpdateTableCommand,
     useUndo,
 } from '@/hooks/useUndo';
-import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { validateSchema, ValidationResult } from '@/lib/validation';
+import { SignedOut, SignInButton } from '@clerk/nextjs';
 import {
     applyEdgeChanges,
     applyNodeChanges,
@@ -37,7 +38,6 @@ import { BadgeCheck, Database, Diamond, Download, Fingerprint, Hash, Key, Keyboa
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { validateSchema, ValidationResult } from '@/lib/validation';
 
 const nodeTypes = {
     table: (props: TableNodeProps) => <TableNode {...props} />,
@@ -60,6 +60,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
     const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
     const [isValidationDialogOpen, setIsValidationDialogOpen] = useState(false);
     const [validationResults, setValidationResults] = useState<ValidationResult | null>(null);
+    const [projectName, setProjectName] = useState<string>('Untitled Project');
 
     // Initialize the undo system
     const {
@@ -145,6 +146,9 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                 if (!response.ok) throw new Error('Failed to load schema');
 
                 const project = await response.json();
+                // Set the project name
+                setProjectName(project.name || 'Untitled Project');
+
                 if (project.schema) {
                     const { nodes: savedNodes, edges: savedEdges } = project.schema;
 
@@ -541,8 +545,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             });
         }
     }, [selectedTable, handleRemoveTable]);
-
-    const handleSave = useCallback(async () => {
+        const handleSave = useCallback(async () => {
         try {
             const unwrappedParams = await params;
             const response = await fetch(`/api/projects/${unwrappedParams.id}`, {
@@ -571,7 +574,6 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             toast.error('Failed to save schema');
         }
     }, [nodes, edges, params]);
-
     // Keyboard shortcuts integration - must be after all function definitions
     useKeyboardShortcuts({
         onNewTable: () => setIsAddTableOpen(true),
@@ -639,6 +641,12 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <span className="uppercase tracking-wide">{edges.length} Reference{edges.length !== 1 ? 's' : ''}</span>
                         </div>
                     </div>
+
+                    {/* Project Name in the center */}
+                    <div className="absolute left-1/2 transform -translate-x-1/2 text-xl font-semibold text-zinc-100">
+                        {projectName}
+                    </div>
+
                     <div className="flex items-center gap-3">
                         {/* Keyboard Shortcuts Help Button */}
                         <button
@@ -706,16 +714,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                                 </button>
                             </SignInButton>
                         </SignedOut>
-                        <SignedIn>
-                            <button
-                                onClick={handleSave}
-                                className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors"
-                                title="Save schema (Shift+S)"
-                            >
-                                <Save className="h-4 w-4 text-white" />
-                                Save Schema
-                            </button>
-                        </SignedIn>
+                        {/* Save Schema button removed */}
                     </div>
                 </header>
                 <div className="flex-1 relative">

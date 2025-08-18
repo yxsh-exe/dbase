@@ -1,26 +1,25 @@
 "use client"
 
 import {
+    ArrowUpDown,
     CalendarClock,
     CalendarPlus,
     Database,
+    Database as DatabaseIcon,
     Filter,
     Grid2X2 as Grid,
     Rows as List,
-    Import,
     Plus,
     Search,
-    Trash2,
-    Database as DatabaseIcon,
-    ArrowUpDown,
+    Trash2
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "react-hot-toast"
 
-import { Edge, Node } from "@xyflow/react"
 import { TableNodeData } from "@/components/editor/nodes/types/Field"
+import { Edge, Node } from "@xyflow/react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -224,12 +223,6 @@ export default function ProjectsPage() {
                             </SignedOut>
                             <SignedIn>
                                 <div className="flex gap-2">
-                                    <Link href="/import">
-                                        <Button size="lg" variant="outline">
-                                            <Import className="mr-2 h-4 w-4" />
-                                            Import Database
-                                        </Button>
-                                    </Link>
                                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                         <DialogTrigger asChild>
                                             <Button size="lg">
@@ -308,9 +301,9 @@ export default function ProjectsPage() {
                                         <DatabaseIcon className="mr-2 h-4 w-4" />
                                         <SelectValue>
                                             {filterType === "ALL" ? "All types" : 
-                                             filterType === "RELATIONAL" ? "Relational" :
-                                             filterType === "NOSQL" ? "NoSQL" :
-                                             filterType === "HYBRID" ? "Hybrid" : "Type"}
+                                            filterType === "RELATIONAL" ? "Relational" :
+                                            filterType === "NOSQL" ? "NoSQL" :
+                                            filterType === "HYBRID" ? "Hybrid" : "Type"}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>

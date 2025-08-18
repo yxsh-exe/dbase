@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ArrowRight, Check, Code2, Database, DownloadCloud, GitBranch, Network, Shapes, Shield, Users, Zap } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -72,61 +73,22 @@ export default function HomePage() {
               <div className="size-3 rounded-full bg-yellow-500/80" />
               <div className="size-3 rounded-full bg-green-500/80" />
             </div>
-            <div className="grid grid-cols-12 gap-4 px-4 py-6 md:px-8 md:py-8">
-              <div className="col-span-12 md:col-span-7">
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="rounded-lg border border-border bg-background/40 p-4">
-                      <div className="h-4 w-24 rounded bg-foreground/15" />
-                      <div className="mt-3 space-y-2">
-                        <div className="h-3 w-5/6 rounded bg-foreground/10" />
-                        <div className="h-3 w-4/6 rounded bg-foreground/10" />
-                        <div className="h-3 w-3/6 rounded bg-foreground/10" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="col-span-12 md:col-span-5">
-                <div className="rounded-lg border border-border bg-background/40 p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-md bg-primary/20" />
-                    <div className="h-4 w-40 rounded bg-foreground/15" />
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    <div className="h-3 w-full rounded bg-foreground/10" />
-                    <div className="h-3 w-5/6 rounded bg-foreground/10" />
-                    <div className="h-3 w-4/6 rounded bg-foreground/10" />
-                  </div>
-                </div>
-              </div>
+
+            {/* Content */}
+            <div className="flex items-center justify-center p-5">
+              <Image
+                src="/landing.png"
+                alt="Landing Image"
+                width={1000}
+                height={1000}
+                className="rounded-lg object-contain"
+              />
             </div>
+
           </div>
         </div>
-      </section>
 
-      {/* Stats */}
-      <section className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-foreground md:text-3xl">10K+</div>
-            <div className="text-xs text-muted-foreground">Schemas created</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-foreground md:text-3xl">500+</div>
-            <div className="text-xs text-muted-foreground">Teams onboard</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-foreground md:text-3xl">50M+</div>
-            <div className="text-xs text-muted-foreground">Tables designed</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-foreground md:text-3xl">99.9%</div>
-            <div className="text-xs text-muted-foreground">Uptime</div>
-          </div>
-        </div>
       </section>
-
       {/* Features */}
       <section id="features" className="mx-auto w-full max-w-6xl px-6 py-20">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
