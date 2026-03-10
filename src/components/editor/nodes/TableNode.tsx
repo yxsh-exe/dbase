@@ -1,8 +1,10 @@
+import React, { useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Diamond, Edit2, Fingerprint, Hash, Key, Link, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Diamond, Edit2, Fingerprint, Hash, Key, Link, Palette, Plus, Trash2 } from 'lucide-react';
 import { FieldDialog } from './FieldDialog';
 import { Field, TableNodeData } from './types/Field';
+import { useTheme } from '@/context/ThemeContext';
+import { ColorPicker } from '@/components/ColorPicker';
 
 // Define the TableNodeProps type
 export type TableNodeProps = {
@@ -21,6 +23,32 @@ export const TableNode = ({
     const [showFieldDialog, setShowFieldDialog] = useState(false);
     const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const colorPickerRef = useRef<HTMLDivElement>(null);
+    const { setCustomTableColor, getTableColor } = useTheme();
+
+    // Get table color from data or use default
+    // Prioritize color from table data, then fall back to theme context, then default
+    const tableColor = getTableColor(id);
+    const tableBgColor = data.color || tableColor.bgColor;
+    const tableTextColor = tableColor.textColor;
+    
+    // Check if table has custom color (not default grey)
+    const isDefaultColor = tableBgColor === '#000';
+
+    // Handle clicks outside the color picker
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (showColorPicker && colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+                setShowColorPicker(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showColorPicker]);
 
     useEffect(() => {
         setTableName(data.name);
@@ -74,15 +102,16 @@ export const TableNode = ({
         }
     };
 
-    const getFieldStyle = (field: Field) => {
-        if (field.primary) return 'font-semibold text-white';
-        if (field.foreign) return 'font-medium text-blue-300';
-        if (!field.nullable) return 'font-medium text-zinc-200';
-        return 'font-normal text-zinc-300';
+    const handleColorChange = (color: string) => {
+        setCustomTableColor(id, color);
+        // Also save the color to the table data
+        data.onUpdateTable?.(id, { color });
+        // Close the color picker when a color is selected
+        setShowColorPicker(false);
     };
 
-    const getConstraintIcons = (field: Field) => {
-        const icons = [];
+    const getConstraintIcons = (field: Field): React.JSX.Element[] => {
+        const icons: React.JSX.Element[] = [];
         const constraints = field.constraints?.map(c => c.type) || [];
 
         // Legacy constraint handling
@@ -96,7 +125,7 @@ export const TableNode = ({
 
         if (field.foreign || constraints.includes('foreign_key')) {
             const fkConstraint = field.constraints?.find(c => c.type === 'foreign_key');
-            const cascadeInfo = [];
+            const cascadeInfo: string[] = [];
             if (fkConstraint?.onDelete === 'CASCADE') cascadeInfo.push('CASCADE DEL');
             if (fkConstraint?.onUpdate === 'CASCADE') cascadeInfo.push('CASCADE UPD');
 
@@ -117,7 +146,6 @@ export const TableNode = ({
                 </span>
             );
         }
-
 
         if (isIdentity(field) || constraints.includes('identity')) {
             icons.push(
@@ -142,7 +170,7 @@ export const TableNode = ({
     };
 
     const getFieldTooltip = (field: Field) => {
-        const parts = [];
+        const parts: string[] = [];
 
         if (field.referencedTable) {
             parts.push(`References ${field.referencedTable}.${field.referencedField}`);
@@ -189,19 +217,31 @@ export const TableNode = ({
     return (
         <>
             <div
-                className={`bg-zinc-900 border-2 rounded-md w-72 transition-all duration-200 ${selected
+                className={`border-3 rounded-md w-72 transition-all duration-200 ${selected
                     ? 'border-white shadow-lg'
                     : 'border-zinc-700 hover:border-zinc-500'
                     }`}
+                style={{
+                    backgroundColor: isDefaultColor ? '#000' : tableBgColor,
+                }}
                 onClick={handleNodeClick}
             >
                 <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-white !border-none" />
                 <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-white !border-none" />
-                {/* Table Header */}
-                <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-800 rounded-t-md">
 
+                {/* Table Header */}
+                <div
+                    className="px-4 py-3 rounded-t-md"
+                    style={{
+                        backgroundColor: isDefaultColor
+                            ? '#000'
+                            : `${tableBgColor}E6`, // 90% opacity for colored headers
+                    }}
+                >
                     <div className="flex items-center justify-between">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-table2 text-light mr-2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-light mr-2">
+                            <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"></path>
+                        </svg>
                         <div className="flex-1" onClick={(e) => e.stopPropagation()}>
                             {isEditing ? (
                                 <input
@@ -211,115 +251,181 @@ export const TableNode = ({
                                     onBlur={handleTableNameSave}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') handleTableNameSave();
-                                        else if (e.key === 'Escape') setIsEditing(false);
+                                        else if (e.key === 'Escape') {
+                                            setTableName(data.name);
+                                            setIsEditing(false);
+                                        }
                                     }}
-                                    className="bg-zinc-800 text-zinc-100 px-2 py-1 text-sm border border-zinc-600 focus:outline-none focus:border-white w-full"
+                                    className="bg-zinc-800 text-zinc-100 px-2 py-1 text-sm  focus:outline-none w-full"
                                     autoFocus
+                                    style={{
+                                        backgroundColor: isDefaultColor
+                                            ? '#1f2937'
+                                            : `${tableBgColor}B3`, // 70% opacity for input
+                                        color: tableTextColor,
+                                    }}
                                 />
                             ) : (
                                 <h3
-                                    className="text-sm font-bold cursor-pointer text-zinc-100 hover:text-zinc-300 "
+                                    className="text-sm font-bold cursor-pointer hover:text-zinc-300"
+                                    style={{ color: tableTextColor }}
                                     onClick={() => setIsEditing(true)}
                                 >
                                     {tableName}
                                 </h3>
                             )}
                         </div>
-                        <button
-                            onClick={handleRemoveTable}
-                            className="text-zinc-400 hover:text-white p-1 transition-colors ml-2"
-                            title="Delete table"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowColorPicker(!showColorPicker);
+                                }}
+                                className="p-1"
+                                style={{ color: tableTextColor }}
+                                title="Change table color"
+                            >
+                                <Palette className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={handleRemoveTable}
+                                className="text-white hover:text-red-500 p-1 transition-colors ml-1"
+                                title="Delete table"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
+
+                    {/* Color Picker */}
+                    {showColorPicker && (
+                        <div ref={colorPickerRef} className="mt-2">
+                            <ColorPicker
+                                value={tableBgColor}
+                                onChange={handleColorChange}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Fields List */}
                 <div>
-                    {data.fields.map((field: Field, index: number) => {
-                        const constraintIcons = getConstraintIcons(field);
-                        const tooltip = getFieldTooltip(field);
+                    {data.fields && data.fields.length > 0 ? (
+                        data.fields.map((field: Field, index: number) => {
+                            const constraintIcons = getConstraintIcons(field);
+                            const tooltip = getFieldTooltip(field);
 
-                        return (
-                            <div
-                                key={index}
-                                className="flex items-center px-4 py-2 border-b border-zinc-800 last:border-b-0 group hover:bg-zinc-800 transition-colors"
-                                title={tooltip}
-                            >
-                                <div className="flex items-center w-full">
-                                    {/* Enhanced constraint icons */}
-                                    <div className="mr-3 flex items-center gap-1 shrink-0">
-                                        {constraintIcons}
-                                    </div>
-
-                                    {/* Field name with enhanced styling */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className={`text-xs ${getFieldStyle(field)} truncate flex items-center gap-1`}>
-                                            <span>{field.name}</span>
-                                            {/* Enhanced FK indicator with cascade info */}
-                                            {field.foreign && field.constraints?.some(c => c.type === 'foreign_key') && (
-                                                <div className="flex gap-1">
-                                                    {field.constraints
-                                                        ?.filter(c => c.type === 'foreign_key')
-                                                        .map((constraint, idx) => (
-                                                            <div key={idx} className="flex gap-0.5">
-                                                                {constraint.onDelete === 'CASCADE' && (
-                                                                    <span className="text-[8px] px-1 py-0.5 bg-red-900/50 text-red-300 rounded">
-                                                                        C-DEL
-                                                                    </span>
-                                                                )}
-                                                                {constraint.onUpdate === 'CASCADE' && (
-                                                                    <span className="text-[8px] px-1 py-0.5 bg-blue-900/50 text-blue-300 rounded">
-                                                                        C-UPD
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ))
-                                                    }
-                                                </div>
-                                            )}
+                            return (
+                                <div
+                                    key={`${field.name}-${index}`}
+                                    className="flex items-center px-4 py-2 border-b-white border "
+                                    title={tooltip}
+                                    style={{
+                                        backgroundColor: isDefaultColor
+                                            ? '#000'
+                                            : `${tableBgColor}80`, // 80% opacity dark overlay for colored fields
+                                        backgroundImage: isDefaultColor
+                                            ? 'none'
+                                            : `linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8))`,
+                                    }}
+                                >
+                                    <div className="flex items-center w-full">
+                                        {/* Enhanced constraint icons */}
+                                        <div className="mr-3 flex items-center gap-1 shrink-0">
+                                            {constraintIcons}
                                         </div>
 
-                                        {/* Reference info for foreign keys */}
-                                        {field.referencedTable && (
-                                            <div className="text-[9px] text-zinc-500 truncate">
-                                                → {field.referencedTable}.{field.referencedField}
+                                        {/* Field name with enhanced styling */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs truncate flex items-center gap-1" style={{ color: tableTextColor }}>
+                                                <span>{field.name}</span>
+                                                {/* Enhanced FK indicator with cascade info */}
+                                                {field.foreign && field.constraints?.some(c => c.type === 'foreign_key') && (
+                                                    <div className="flex gap-1">
+                                                        {field.constraints
+                                                            ?.filter(c => c.type === 'foreign_key')
+                                                            .map((constraint, idx) => (
+                                                                <div key={idx} className="flex gap-0.5">
+                                                                    {constraint.onDelete === 'CASCADE' && (
+                                                                        <span className="text-[8px] px-1 py-0.5 bg-red-900/50 text-red-300 rounded">
+                                                                            C-DEL
+                                                                        </span>
+                                                                    )}
+                                                                    {constraint.onUpdate === 'CASCADE' && (
+                                                                        <span className="text-[8px] px-1 py-0.5 bg-blue-900/50 text-blue-300 rounded">
+                                                                            C-UPD
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-
-                                    {/* Type and actions */}
-                                    <div className="ml-3 flex items-center gap-2">
-                                        <div className="text-[10px] text-zinc-400">
-                                            {formatFieldType(field)}
                                         </div>
-                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                                            <button
-                                                onClick={(e) => handleEditField(index, e)}
-                                                className="text-zinc-400 hover:text-white p-1 transition-colors"
-                                            >
-                                                <Edit2 className="w-3 h-3" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => handleRemoveField(index, e)}
-                                                className="text-zinc-400 hover:text-white p-1 transition-colors"
-                                            >
-                                                <Trash2 className="w-3 h-3" />
-                                            </button>
+
+                                        {/* Type and actions */}
+                                        <div className="ml-3 flex items-center gap-2">
+                                            <div className="text-[10px]" style={{ color: `${tableTextColor}CC` }}>
+                                                {formatFieldType(field)}
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                                                <button
+                                                    onClick={(e) => handleEditField(index, e)}
+                                                    className="p-1 transition-colors hover:opacity-80"
+                                                    style={{ color: tableTextColor }}
+                                                    title="Edit field"
+                                                >
+                                                    <Edit2 className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleRemoveField(index, e)}
+                                                    className="p-1 transition-colors hover:text-red-400"
+                                                    style={{ color: tableTextColor }}
+                                                    title="Remove field"
+                                                >
+                                                    <Trash2 className="w-3 h-3 hover:text-red-500" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    ) : (
+                        <div
+                            className="px-4 py-3 text-center text-xs"
+                            style={{
+                                color: `${tableTextColor}CC`,
+                                backgroundColor: isDefaultColor
+                                    ? '#000'
+                                    : `${tableBgColor}80`,
+                                backgroundImage: isDefaultColor
+                                    ? 'none'
+                                    : 'linear-gradient(rgba(0,0,0,1), rgba(0,0,0,1))',
+                            }}
+                        >
+                            No fields added yet
+                        </div>
+                    )}
                 </div>
 
                 {/* Add Field Button */}
-                <div className="px-4 py-2 border-t border-zinc-700 bg-zinc-800 rounded-b-md">
+                <div
+                    className="px-4 py-2 rounded-b-md"
+                    style={{
+                        backgroundColor: isDefaultColor
+                            ? '#000'
+                            : `${tableBgColor}E6`, // 90% opacity for colored footer
+                    }}
+                >
                     <button
                         onClick={handleAddField}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-zinc-200 hover:text-white hover:bg-zinc-900 border border-zinc-600 hover:border-zinc-500 text-xs font-medium transition-colors uppercase tracking-wide"
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors uppercase tracking-wide hover:opacity-80 rounded border"
+                        style={{
+                            color: tableTextColor,
+                            borderColor: `${tableTextColor}66`, // 40% opacity border
+                        }}
                     >
                         <Plus className="h-3 w-3" />
                         Add Field
@@ -327,6 +433,7 @@ export const TableNode = ({
                 </div>
             </div>
 
+            {/* Field Dialog */}
             <FieldDialog
                 isOpen={showFieldDialog}
                 onClose={() => setShowFieldDialog(false)}

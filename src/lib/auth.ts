@@ -16,21 +16,15 @@ export async function getOrCreateUser(): Promise<AuthUser | null> {
   try {
     const { userId } = await auth();
     if (!userId) {
-      console.log('No userId found in auth');
       return null;
     }
-
-    console.log('Auth userId:', userId);
 
     // First, try to find existing user
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
 
-    console.log('Found user:', user);
-
     if (user) {
-      console.log('Found existing user:', user.email);
       return {
         id: user.id,
         clerkId: user.clerkId!,
@@ -42,11 +36,8 @@ export async function getOrCreateUser(): Promise<AuthUser | null> {
     // If user doesn't exist, get Clerk user data and create
     const clerkUser = await currentUser();
     if (!clerkUser) {
-      console.log('No Clerk user found for userId:', userId);
       return null;
     }
-
-    console.log('Creating new user for Clerk user:', clerkUser.emailAddresses[0]?.emailAddress);
 
     // Create user in database
     const newUser = await prisma.user.create({
@@ -56,8 +47,6 @@ export async function getOrCreateUser(): Promise<AuthUser | null> {
         name: clerkUser.fullName ?? clerkUser.username ?? null,
       },
     });
-
-    console.log('Created new user:', newUser.email);
 
     return {
       id: newUser.id,

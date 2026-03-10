@@ -1,0 +1,97 @@
+# Dependencies
+node_modules
+
+# Build outputs
+.next
+out
+
+# Environment files
+.env*.local
+.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Runtime data
+*.log
+*.lock
+
+# Prisma
+prisma/migrations
+prisma/*.db
+prisma/*.sqlite
+
+# Testing
+coverage
+.nyc_output
+
+# IDE and editor files
+.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+
+# Temporary files
+tmp
+temp
+
+# Docker
+.dockerignore
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Optional eslint cache
+.eslintcache
+
+# Typechain
+typechain
+
+# Next.js
+.next/cache
+.next/build
+.next/server
+.next/static/chunks
+.next/static/css
+.next/static/media
+.next/static/development
+.next/static/runtime
+.next/static/build-manifest.json
+.next/static/ssg-manifest.json
+.next/server/pages-manifest.json
+.next/server/middleware-manifest.json
+.next/server/middleware-react-loadable-manifest.js
+.next/server/pages/_app.js
+.next/server/pages/_document.js
+.next/server/pages/_error.js

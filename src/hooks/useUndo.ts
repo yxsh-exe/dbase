@@ -135,6 +135,7 @@ export class CreateTableCommand implements Command {
       fields: Field[];
       position: { x: number; y: number };
       references?: TableReference[];
+      color?: string; // Add color property
     },
     private edges: Edge[] = [],
   ) {}
@@ -148,6 +149,7 @@ export class CreateTableCommand implements Command {
         name: this.tableData.name,
         fields: this.tableData.fields,
         references: this.tableData.references || [],
+        color: this.tableData.color, // Include color if provided
       },
     };
 

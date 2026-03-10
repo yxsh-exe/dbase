@@ -33,6 +33,7 @@ import {
     NodeChange,
     ReactFlow
 } from '@xyflow/react';
+// @ts-expect-error: ReactFlow CSS import has no type declarations
 import '@xyflow/react/dist/style.css';
 import { BadgeCheck, Database, Diamond, Download, Fingerprint, Hash, Key, Keyboard, LinkIcon, Plus, Redo, Save, Undo } from 'lucide-react';
 import Link from 'next/link';
@@ -157,6 +158,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                         type: 'table',
                         data: {
                             ...node.data,
+                            color: node.data.color, // Explicitly preserve the color property
                             fields: node.data.fields.map((field: Field) => ({
                                 ...field,
                                 primary: !!field.primary,
@@ -178,8 +180,6 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                         edges: processedEdges,
                         nextTableId: maxId + 1
                     });
-
-                    toast.success('Schema loaded successfully');
                 }
             } catch (error) {
                 console.error('Error loading schema:', error);
@@ -545,7 +545,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
             });
         }
     }, [selectedTable, handleRemoveTable]);
-        const handleSave = useCallback(async () => {
+    const handleSave = useCallback(async () => {
         try {
             const unwrappedParams = await params;
             const response = await fetch(`/api/projects/${unwrappedParams.id}`, {

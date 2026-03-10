@@ -50,6 +50,7 @@ export interface TableReference {
 export interface TableNodeData extends Record<string, unknown> {
   name: string;
   fields: Field[];
+  color?: string; 
   references?: TableReference[];
   onUpdateTable?: (tableId: string, data: Partial<TableNodeData>) => void;
   onRemoveTable?: (tableId: string) => void;

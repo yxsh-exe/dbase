@@ -11,6 +11,132 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari, and Opera */
 }
+
+/* Color palette for table types */
+:root {
+  /* Default grey colors for all table types initially */
+  --table-user: #374151; /* gray-700 */
+  --table-product: #374151; /* gray-700 */
+  --table-order: #374151; /* gray-700 */
+  --table-transaction: #374151; /* gray-700 */
+  --table-log: #374151; /* gray-700 */
+  --table-default: #374151; /* gray-700 */
+
+  /* Default grey colors for teams initially */
+  --team-frontend: #374151; /* gray-700 */
+  --team-backend: #374151; /* gray-700 */
+  --team-data: #374151; /* gray-700 */
+  --team-ops: #374151; /* gray-700 */
+
+  /* Predefined color palette for selection */
+  --color-blue: #1d4ed8; /* blue-700 */
+  --color-emerald: #047857; /* emerald-700 */
+  --color-amber: #b45309; /* amber-700 */
+  --color-red: #b91c1c; /* red-700 */
+  --color-violet: #6d28d9; /* violet-700 */
+  --color-cyan: #0e7490; /* cyan-700 */
+  --color-pink: #be185d; /* pink-700 */
+  --color-orange: #c2410c; /* orange-700 */
+  --color-green: #16a34a; /* green-600 */
+  --color-indigo: #4338ca; /* indigo-700 */
+  --color-purple: #7c3aed; /* purple-600 */
+  --color-rose: #e11d48; /* rose-600 */
+  --color-teal: #0f766e; /* teal-700 */
+  --color-lime: #65a30d; /* lime-600 */
+  --color-sky: #0284c7; /* sky-600 */
+
+  /* Chart colors */
+  --chart-1: #1d4ed8;
+  --chart-2: #047857;
+  --chart-3: #b45309;
+  --chart-4: #b91c1c;
+  --chart-5: #6d28d9;
+}
+
+/* Dark mode overrides */
+.dark {
+  /* Keep the same grey defaults in dark mode */
+  --table-user: #000;
+  --table-product: #000;
+  --table-order: #000;
+  --table-transaction: #000;
+  --table-log: #000;
+  --table-default: #000;
+
+  /* Keep the same grey defaults for teams in dark mode */
+  --team-frontend: #000;
+  --team-backend: #000;
+  --team-data: #000;
+  --team-ops: #000;
+
+  /* Color palette remains the same in dark mode */
+  --color-blue: #1d4ed8;
+  --color-emerald: #047857;
+  --color-amber: #b45309;
+  --color-red: #b91c1c;
+  --color-violet: #6d28d9;
+  --color-cyan: #0e7490;
+  --color-pink: #be185d;
+  --color-orange: #c2410c;
+  --color-green: #16a34a;
+  --color-indigo: #4338ca;
+  --color-purple: #7c3aed;
+  --color-rose: #e11d48;
+  --color-teal: #0f766e;
+  --color-lime: #65a30d;
+  --color-sky: #0284c7;
+
+  /* Chart colors */
+  --chart-1: #1d4ed8;
+  --chart-2: #047857;
+  --chart-3: #b45309;
+  --chart-4: #b91c1c;
+  --chart-5: #6d28d9;
+}
+
+/* Table node styling utilities */
+.table-node-default {
+  background-color: var(--table-default);
+}
+
+.table-node-colored {
+  position: relative;
+}
+
+.table-node-colored .field-overlay {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.4));
+}
+
+/* Color picker preset colors */
+.color-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: #1f2937;
+  border-radius: 8px;
+  border: 1px solid #374151;
+}
+
+.color-preset-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.color-preset-button:hover {
+  border-color: #ffffff;
+  transform: scale(1.1);
+}
+
+.color-preset-button.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
