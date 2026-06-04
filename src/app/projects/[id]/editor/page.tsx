@@ -17,7 +17,7 @@ import {
     useUndo,
 } from '@/hooks/useUndo';
 import { validateSchema, ValidationResult } from '@/lib/validation';
-import { SignedOut, SignInButton } from '@clerk/nextjs';
+import { Show, SignInButton } from '@clerk/nextjs';
 import {
     applyEdgeChanges,
     applyNodeChanges,
@@ -33,7 +33,6 @@ import {
     NodeChange,
     ReactFlow
 } from '@xyflow/react';
-// @ts-expect-error: ReactFlow CSS import has no type declarations
 import '@xyflow/react/dist/style.css';
 import { BadgeCheck, Database, Diamond, Download, Fingerprint, Hash, Key, Keyboard, LinkIcon, Plus, Redo, Save, Undo } from 'lucide-react';
 import Link from 'next/link';
@@ -706,14 +705,14 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <Plus className="h-4 w-4 text-green-400" />
                             Add Table
                         </button>
-                        <SignedOut>
+                        <Show when="signed-out">
                             <SignInButton mode="modal">
                                 <button className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors">
                                     <Save className="h-4 w-4 text-white" />
                                     Log in to save
                                 </button>
                             </SignInButton>
-                        </SignedOut>
+                        </Show>
                         {/* Save Schema button removed */}
                     </div>
                 </header>

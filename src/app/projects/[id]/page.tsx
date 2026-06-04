@@ -35,7 +35,7 @@ import dracula from "react-syntax-highlighter/dist/esm/styles/prism/dracula"
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql"
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"
+import { Show, SignInButton } from "@clerk/nextjs"
 
 import type { Edge, Node } from "@xyflow/react"
 import type { TableNodeData } from "@/components/editor/nodes/types/Field"
@@ -254,14 +254,14 @@ export default function ProjectPage({ params }: PageProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <SignedOut>
+                        <Show when="signed-out">
                             <SignInButton mode="modal">
                                 <Button>
                                     <Edit3 /> Log in to edit
                                 </Button>
                             </SignInButton>
-                        </SignedOut>
-                        <SignedIn>
+                        </Show>
+                        <Show when="signed-in">
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Link href={`/projects/${project.id}/editor`}>
@@ -272,7 +272,7 @@ export default function ProjectPage({ params }: PageProps) {
                                 </TooltipTrigger>
                                 <TooltipContent>Start modeling</TooltipContent>
                             </Tooltip>
-                        </SignedIn>
+                        </Show>
                         <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="destructive">

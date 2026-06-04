@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import prisma from '../../../../lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/generated/client';
 import { getOrCreateUser } from '../../../../lib/auth';
 
 type RouteParams = { params: Promise<{ id: string }> };

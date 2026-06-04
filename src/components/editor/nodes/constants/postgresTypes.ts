@@ -1,9 +1,9 @@
 export const POSTGRESQL_TYPES: Record<string, readonly string[]> = {
-  'Date/Time': ['date', 'time', 'timetz', 'timestamp', 'timestamptz'],
-  Boolean: ['bool'],
-  Binary: ['bytea'],
-  Numeric: ['int2', 'int4', 'int8', 'float4', 'float8', 'numeric'],
-  JSON: ['json', 'jsonb'],
-  Character: ['text', 'varchar'],
+  'Date/Time': ['date', 'time', 'timestamp'],
+  Boolean: ['boolean'],
+  Binary: ['blob', 'binary'],
+  Numeric: ['smallint', 'integer', 'bigint', 'decimal', 'numeric', 'real', 'double precision'],
+  JSON: ['json'],
+  Character: ['text', 'varchar', 'char'],
   UUID: ['uuid'],
 } as const;

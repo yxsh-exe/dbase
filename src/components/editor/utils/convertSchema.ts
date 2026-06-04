@@ -2,6 +2,7 @@ import type { Edge, Node } from '@xyflow/react';
 import type { TableNodeData } from '../nodes/types/Field';
 
 export type SchemaFormat = 'sql' | 'prisma' | 'drizzle';
+export type SqlDialect = 'postgresql' | 'mysql' | 'mssql' | 'sqlite';
 
 function toPascalCase(input: string): string {
   return input
@@ -49,62 +50,156 @@ function mapDbTypeToDrizzle(dbType: string): string {
   return drizzleType; // Drizzle arrays will be handled differently in the builder
 }
 
-export function generateSql(nodes: Node<TableNodeData>[]): string {
+function quoteIdent(ident: string, dialect: SqlDialect): string {
+  switch (dialect) {
+    case 'mysql': return `\`${ident}\``;
+    case 'mssql': return `[${ident}]`;
+    case 'postgresql':
+    case 'sqlite':
+    default:
+      return `"${ident}"`;
+  }
+}
+
+function mapSqlType(fieldType: string, dialect: SqlDialect): string {
+  const t = fieldType.toLowerCase();
+  const isArray = t.endsWith('[]');
+  const baseType = isArray ? t.slice(0, -2) : t;
+
+  let mappedType = baseType;
+
+  if (dialect === 'mysql') {
+    if (baseType === 'uuid') mappedType = 'varchar(36)';
+    else if (baseType === 'text') mappedType = 'text';
+    else if (['int2', 'int4', 'integer'].includes(baseType)) mappedType = 'int';
+    else if (['int8', 'bigint'].includes(baseType)) mappedType = 'bigint';
+    else if (['float8', 'double precision'].includes(baseType)) mappedType = 'double';
+    else if (['timestamp', 'timestamptz'].includes(baseType)) mappedType = 'timestamp';
+    // Fallback arrays to JSON
+    if (isArray) return 'json';
+  } else if (dialect === 'mssql') {
+    if (baseType === 'uuid') mappedType = 'uniqueidentifier';
+    else if (baseType === 'text') mappedType = 'nvarchar(max)';
+    else if (baseType === 'varchar') mappedType = 'nvarchar';
+    else if (['int2', 'int4', 'integer'].includes(baseType)) mappedType = 'int';
+    else if (['int8', 'bigint'].includes(baseType)) mappedType = 'bigint';
+    else if (['timestamp', 'timestamptz'].includes(baseType)) mappedType = 'datetime2';
+    else if (baseType === 'boolean' || baseType === 'bool') mappedType = 'bit';
+    if (isArray) return 'nvarchar(max)';
+  } else if (dialect === 'sqlite') {
+    if (['int2', 'int4', 'int8', 'integer', 'bigint'].includes(baseType)) mappedType = 'integer';
+    else if (['float4', 'float8', 'double', 'real', 'numeric', 'decimal'].includes(baseType)) mappedType = 'real';
+    else if (baseType === 'boolean' || baseType === 'bool') mappedType = 'integer'; // 0 or 1
+    else mappedType = 'text'; // uuid, varchar, text, json, arrays all fall to text
+    if (isArray) return 'text';
+  }
+
+  return isArray ? `${mappedType}[]` : mappedType; // postgres keeps arrays
+}
+
+export function generateSql(nodes: Node<TableNodeData>[], dialect: SqlDialect = 'postgresql'): string {
   const statements: string[] = [];
 
   for (const node of nodes) {
     const tableName = node.data.name;
+    const qTableName = quoteIdent(tableName, dialect);
     const columnLines: string[] = [];
-    const pkFields = node.data.fields.filter((f) => !!f.primary).map((f) => `"${f.name}"`);
+    const pkFields = node.data.fields.filter((f) => !!f.primary).map((f) => quoteIdent(f.name, dialect));
     const fkLines: string[] = [];
 
     for (const field of node.data.fields) {
       const parts: string[] = [];
-      parts.push(`"${field.name}"`);
+      const qFieldName = quoteIdent(field.name, dialect);
+      parts.push(qFieldName);
+      
       const typeClause = (() => {
         const fieldType = field.type || 'text';
-        const isArray = fieldType.endsWith('[]');
-        const baseType = isArray ? fieldType.slice(0, -2) : fieldType;
+        const mappedBase = mapSqlType(fieldType, dialect);
         
-        let sqlType = baseType;
-        if (field.length) sqlType = `${baseType}(${field.length})`;
-        else if (field.precision && field.scale) sqlType = `${baseType}(${field.precision}, ${field.scale})`;
-        else if (field.precision) sqlType = `${baseType}(${field.precision})`;
+        let sqlType = mappedBase;
+        if (field.length && !mappedBase.includes('(')) sqlType = `${mappedBase}(${field.length})`;
+        else if (field.precision && field.scale && !mappedBase.includes('(')) sqlType = `${mappedBase}(${field.precision}, ${field.scale})`;
+        else if (field.precision && !mappedBase.includes('(')) sqlType = `${mappedBase}(${field.precision})`;
         
-        return isArray ? `${sqlType}[]` : sqlType;
+        return sqlType;
       })();
       parts.push(typeClause);
+
+      // Identity/Auto-increment handling
+      const isIdentity = (f: any) => {
+        const dv = (f.defaultValue || '').toLowerCase();
+        return /nextval\(|identity|serial|auto_increment|autoincrement/.test(dv);
+      };
+
+      if (isIdentity(field)) {
+        if (dialect === 'mysql') parts.push('AUTO_INCREMENT');
+        else if (dialect === 'mssql') parts.push('IDENTITY(1,1)');
+        else if (dialect === 'sqlite' && field.primary && typeClause.toLowerCase() === 'integer') {
+            // SQLite AUTOINCREMENT strictly works with INTEGER PRIMARY KEY
+            // We'll append it after PRIMARY KEY below
+        }
+        else if (dialect === 'postgresql') parts.push('GENERATED ALWAYS AS IDENTITY');
+      }
+
       if (field.nullable === false) parts.push('NOT NULL');
       if (field.unique) parts.push('UNIQUE');
-      if (field.defaultValue) {
+      
+      if (field.defaultValue && !isIdentity(field)) {
+        let dv = field.defaultValue;
+        if (dialect === 'mssql' && (dv === 'true' || dv === 'false')) {
+            dv = dv === 'true' ? '1' : '0';
+        } else if (dialect === 'sqlite' && (dv === 'true' || dv === 'false')) {
+            dv = dv === 'true' ? '1' : '0';
+        }
+        
         // Handle array default values
         const isArrayType = field.type?.endsWith('[]');
-        if (isArrayType && field.defaultValue && !field.defaultValue.startsWith('{')) {
-          parts.push(`DEFAULT '{${field.defaultValue}}'`);
+        if (isArrayType && dialect === 'postgresql' && !dv.startsWith('{')) {
+          parts.push(`DEFAULT '{${dv}}'`);
         } else {
-          parts.push(`DEFAULT ${field.defaultValue}`);
+          if (dv.includes('uuid_generate_v4()') || dv.includes('gen_random_uuid()')) {
+              if (dialect === 'mysql') parts.push(`DEFAULT (UUID())`);
+              else if (dialect === 'mssql') parts.push(`DEFAULT NEWID()`);
+              else if (dialect === 'sqlite') parts.push(`DEFAULT (lower(hex(randomblob(16))))`);
+              else parts.push(`DEFAULT ${dv}`);
+          } else if (dv === 'now()') {
+              if (dialect === 'mssql') parts.push(`DEFAULT GETDATE()`);
+              else if (dialect === 'sqlite') parts.push(`DEFAULT CURRENT_TIMESTAMP`);
+              else parts.push(`DEFAULT ${dv}`);
+          } else {
+              parts.push(`DEFAULT ${dv}`);
+          }
         }
       }
       columnLines.push(parts.join(' '));
 
       if (field.foreign && field.referencedTable) {
-        const refTable = field.referencedTable;
-        const refField = field.referencedField ?? 'id';
-        fkLines.push(`FOREIGN KEY ("${field.name}") REFERENCES "${refTable}"("${refField}")`);
+        const refTable = quoteIdent(field.referencedTable, dialect);
+        const refField = quoteIdent(field.referencedField ?? 'id', dialect);
+        fkLines.push(`FOREIGN KEY (${qFieldName}) REFERENCES ${refTable}(${refField})`);
       }
     }
 
     if (pkFields.length === 1) {
       // inline primary key if single
-      const pkName = pkFields[0]?.replaceAll('"', '');
-      const idx = columnLines.findIndex((l) => l.startsWith(`"${pkName}"`));
-      if (idx >= 0) columnLines[idx] = `${columnLines[idx]} PRIMARY KEY`;
+      const idx = columnLines.findIndex((l) => l.startsWith(pkFields[0]));
+      if (idx >= 0) {
+          columnLines[idx] = `${columnLines[idx]} PRIMARY KEY`;
+          // Append AUTOINCREMENT for SQLite if needed
+          const isId = node.data.fields.find(f => quoteIdent(f.name, dialect) === pkFields[0]);
+          if (isId && dialect === 'sqlite') {
+            const dv = (isId.defaultValue || '').toLowerCase();
+            if (/nextval\(|identity|serial|auto_increment|autoincrement/.test(dv)) {
+                columnLines[idx] = `${columnLines[idx]} AUTOINCREMENT`;
+            }
+          }
+      }
     } else if (pkFields.length > 1) {
       columnLines.push(`PRIMARY KEY (${pkFields.join(', ')})`);
     }
 
     columnLines.push(...fkLines);
-    const createStmt = `CREATE TABLE "${tableName}" (\n  ${columnLines.join(',\n  ')}\n);`;
+    const createStmt = `CREATE TABLE ${qTableName} (\n  ${columnLines.join(',\n  ')}\n);`;
     statements.push(createStmt);
   }
 
@@ -236,10 +331,11 @@ export function convertSchema(
   nodes: Node<TableNodeData>[],
   edges: Edge[],
   format: SchemaFormat,
+  dialect: SqlDialect = 'postgresql'
 ): string {
   switch (format) {
     case 'sql':
-      return generateSql(nodes);
+      return generateSql(nodes, dialect);
     case 'prisma':
       return generatePrisma(nodes);
     case 'drizzle':

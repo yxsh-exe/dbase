@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ArrowRight, Check, Code2, Database, DownloadCloud, GitBranch, Network, Shapes, Shield, Users, Zap } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,7 +22,7 @@ export default function HomePage() {
           <span className="text-2xl font-bold tracking-wide ">DBase</span>
         </Link>
         <div className="flex items-center gap-3">
-          <SignedOut>
+          <Show when="signed-out">
             <SignInButton mode="modal">
               <Button variant="outline" size="sm">Log in</Button>
             </SignInButton>
@@ -32,8 +32,8 @@ export default function HomePage() {
                 <ArrowRight className="size-4" />
               </Button>
             </SignUpButton>
-          </SignedOut>
-          <SignedIn>
+          </Show>
+          <Show when="signed-in">
             <Link href="/projects">
               <Button size="sm" className="gap-1">
                 Open app
@@ -41,7 +41,7 @@ export default function HomePage() {
               </Button>
             </Link>
             <UserButton appearance={{ elements: { userButtonAvatarBox: "size-8" } }} />
-          </SignedIn>
+          </Show>
         </div>
       </header>
 

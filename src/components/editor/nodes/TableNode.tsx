@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Diamond, Edit2, Fingerprint, Hash, Key, Link, Palette, Plus, Trash2 } from 'lucide-react';
+import { Diamond, Edit2, Fingerprint, Hash, Key, Link, Plus, Trash2 } from 'lucide-react';
 import { FieldDialog } from './FieldDialog';
 import { Field, TableNodeData } from './types/Field';
 import { useTheme } from '@/context/ThemeContext';
-import { ColorPicker } from '@/components/ColorPicker';
 
 // Define the TableNodeProps type
 export type TableNodeProps = {
@@ -23,32 +22,9 @@ export const TableNode = ({
     const [showFieldDialog, setShowFieldDialog] = useState(false);
     const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
-    const [showColorPicker, setShowColorPicker] = useState(false);
-    const colorPickerRef = useRef<HTMLDivElement>(null);
     const { setCustomTableColor, getTableColor } = useTheme();
 
-    // Get table color from data or use default
-    // Prioritize color from table data, then fall back to theme context, then default
-    const tableColor = getTableColor(id);
-    const tableBgColor = data.color || tableColor.bgColor;
-    const tableTextColor = tableColor.textColor;
-    
-    // Check if table has custom color (not default grey)
-    const isDefaultColor = tableBgColor === '#000';
-
-    // Handle clicks outside the color picker
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (showColorPicker && colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
-                setShowColorPicker(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showColorPicker]);
+    const tableTextColor = '#ffffff';
 
     useEffect(() => {
         setTableName(data.name);
@@ -100,14 +76,6 @@ export const TableNode = ({
         if (data.onRemoveTable && window.confirm('Remove this table?')) {
             data.onRemoveTable(id);
         }
-    };
-
-    const handleColorChange = (color: string) => {
-        setCustomTableColor(id, color);
-        // Also save the color to the table data
-        data.onUpdateTable?.(id, { color });
-        // Close the color picker when a color is selected
-        setShowColorPicker(false);
     };
 
     const getConstraintIcons = (field: Field): React.JSX.Element[] => {
@@ -217,13 +185,10 @@ export const TableNode = ({
     return (
         <>
             <div
-                className={`border-3 rounded-md w-72 transition-all duration-200 ${selected
+                className={`border-3 rounded-md w-72 transition-all duration-200 bg-black ${selected
                     ? 'border-white shadow-lg'
                     : 'border-zinc-700 hover:border-zinc-500'
                     }`}
-                style={{
-                    backgroundColor: isDefaultColor ? '#000' : tableBgColor,
-                }}
                 onClick={handleNodeClick}
             >
                 <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-white !border-none" />
@@ -231,12 +196,7 @@ export const TableNode = ({
 
                 {/* Table Header */}
                 <div
-                    className="px-4 py-3 rounded-t-md"
-                    style={{
-                        backgroundColor: isDefaultColor
-                            ? '#000'
-                            : `${tableBgColor}E6`, // 90% opacity for colored headers
-                    }}
+                    className="px-4 py-3 rounded-t-md bg-black"
                 >
                     <div className="flex items-center justify-between">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-light mr-2">
@@ -256,12 +216,9 @@ export const TableNode = ({
                                             setIsEditing(false);
                                         }
                                     }}
-                                    className="bg-zinc-800 text-zinc-100 px-2 py-1 text-sm  focus:outline-none w-full"
+                                    className="bg-zinc-800 text-zinc-100 px-2 py-1 text-sm focus:outline-none w-full"
                                     autoFocus
                                     style={{
-                                        backgroundColor: isDefaultColor
-                                            ? '#1f2937'
-                                            : `${tableBgColor}B3`, // 70% opacity for input
                                         color: tableTextColor,
                                     }}
                                 />
@@ -277,17 +234,6 @@ export const TableNode = ({
                         </div>
                         <div className="flex items-center gap-1">
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowColorPicker(!showColorPicker);
-                                }}
-                                className="p-1"
-                                style={{ color: tableTextColor }}
-                                title="Change table color"
-                            >
-                                <Palette className="w-4 h-4" />
-                            </button>
-                            <button
                                 onClick={handleRemoveTable}
                                 className="text-white hover:text-red-500 p-1 transition-colors ml-1"
                                 title="Delete table"
@@ -296,16 +242,6 @@ export const TableNode = ({
                             </button>
                         </div>
                     </div>
-
-                    {/* Color Picker */}
-                    {showColorPicker && (
-                        <div ref={colorPickerRef} className="mt-2">
-                            <ColorPicker
-                                value={tableBgColor}
-                                onChange={handleColorChange}
-                            />
-                        </div>
-                    )}
                 </div>
 
                 {/* Fields List */}
@@ -318,16 +254,8 @@ export const TableNode = ({
                             return (
                                 <div
                                     key={`${field.name}-${index}`}
-                                    className="flex items-center px-4 py-2 border-b-white border "
+                                    className="group flex items-center px-4 py-2 border-b-white border bg-black"
                                     title={tooltip}
-                                    style={{
-                                        backgroundColor: isDefaultColor
-                                            ? '#000'
-                                            : `${tableBgColor}80`, // 80% opacity dark overlay for colored fields
-                                        backgroundImage: isDefaultColor
-                                            ? 'none'
-                                            : `linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8))`,
-                                    }}
                                 >
                                     <div className="flex items-center w-full">
                                         {/* Enhanced constraint icons */}
@@ -394,15 +322,9 @@ export const TableNode = ({
                         })
                     ) : (
                         <div
-                            className="px-4 py-3 text-center text-xs"
+                            className="px-4 py-3 text-center text-xs bg-black"
                             style={{
                                 color: `${tableTextColor}CC`,
-                                backgroundColor: isDefaultColor
-                                    ? '#000'
-                                    : `${tableBgColor}80`,
-                                backgroundImage: isDefaultColor
-                                    ? 'none'
-                                    : 'linear-gradient(rgba(0,0,0,1), rgba(0,0,0,1))',
                             }}
                         >
                             No fields added yet
@@ -412,12 +334,7 @@ export const TableNode = ({
 
                 {/* Add Field Button */}
                 <div
-                    className="px-4 py-2 rounded-b-md"
-                    style={{
-                        backgroundColor: isDefaultColor
-                            ? '#000'
-                            : `${tableBgColor}E6`, // 90% opacity for colored footer
-                    }}
+                    className="px-4 py-2 rounded-b-md bg-black"
                 >
                     <button
                         onClick={handleAddField}

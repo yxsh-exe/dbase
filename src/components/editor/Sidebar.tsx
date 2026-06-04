@@ -19,9 +19,10 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import type { Edge, Node } from '@xyflow/react';
-import { ArrowLeft, Check, Code, Copy, Download, GitBranch, Layout, Search, Table, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Code, Copy, Download, GitBranch, Layout, Search, Table, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -30,7 +31,7 @@ import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typesc
 import dracula from 'react-syntax-highlighter/dist/esm/styles/prism/dracula';
 import vscDarkPlus from 'react-syntax-highlighter/dist/esm/styles/prism/vsc-dark-plus';
 import type { TableNodeData } from './nodes/types/Field';
-import { convertSchema, type SchemaFormat } from './utils/convertSchema';
+import { convertSchema, type SchemaFormat, type SqlDialect } from './utils/convertSchema';
 
 // Register a minimal set of languages for highlighting
 let prismLanguagesRegistered = false;
@@ -58,14 +59,16 @@ export function EditorSidebar({
     onSelectTable,
     onRemoveConnection,
 }: EditorSidebarProps) {
+    const { toggleSidebar, state } = useSidebar();
     const [format, setFormat] = useState<SchemaFormat>('sql');
+    const [sqlDialect, setSqlDialect] = useState<SqlDialect>('postgresql');
     const [activeTab, setActiveTab] = useState<'tables' | 'connections' | 'preview' | 'layout'>('tables');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [tableQuery, setTableQuery] = useState('');
     const [copied, setCopied] = useState(false);
     // Wrap is always on; UI toggle removed
 
-    const preview = useMemo(() => convertSchema(nodes, edges, format), [nodes, edges, format]);
+    const preview = useMemo(() => convertSchema(nodes, edges, format, sqlDialect), [nodes, edges, format, sqlDialect]);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(preview || '');
@@ -92,6 +95,14 @@ export function EditorSidebar({
                 <SidebarGroup>
                     <SidebarGroupContent>
                         <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    onClick={() => toggleSidebar()}
+                                >
+                                    {state === "expanded" ? <ChevronLeft /> : <ChevronRight />}
+                                    <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
                             <SidebarMenuItem>
                                 <SidebarMenuButton
                                     isActive={activeTab === 'tables' && isDialogOpen}
@@ -267,6 +278,23 @@ export function EditorSidebar({
                                                         <SelectItem value="drizzle">Drizzle</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+
+                                                {format === 'sql' && (
+                                                    <>
+                                                        <div className="text-xs text-zinc-400 ml-2">Dialect</div>
+                                                        <Select value={sqlDialect} onValueChange={(v) => setSqlDialect(v as SqlDialect)}>
+                                                            <SelectTrigger size="sm" className="h-8">
+                                                                <SelectValue placeholder="Choose dialect" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                                                                <SelectItem value="mysql">MySQL</SelectItem>
+                                                                <SelectItem value="mssql">MS SQL Server</SelectItem>
+                                                                <SelectItem value="sqlite">SQLite</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </>
+                                                )}
 
                                                 <div className="ml-auto flex items-center gap-2 ">
                                                     <Button

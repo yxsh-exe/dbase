@@ -59,35 +59,35 @@ function getDefaultOptionsForType(
         // Date/Time
         case 'timestamp':
         case 'timestamptz':
-            options.push({ label: 'now()', value: 'now()' });
+        case 'datetime':
+        case 'datetime2':
+            options.push({ label: 'Current Timestamp (now() / CURRENT_TIMESTAMP)', value: 'now()' });
             options.push({ label: 'CURRENT_TIMESTAMP', value: 'CURRENT_TIMESTAMP' });
-            options.push({ label: 'Epoch (1970-01-01)', value: `'1970-01-01 00:00:00'::timestamp` });
+            options.push({ label: 'Epoch (1970-01-01)', value: `'1970-01-01 00:00:00'` });
             break;
         case 'date':
             options.push({ label: 'CURRENT_DATE', value: 'CURRENT_DATE' });
             options.push({ label: 'Today (now()::date)', value: 'now()::date' });
-            options.push({ label: 'Epoch (1970-01-01)', value: `'1970-01-01'::date` });
+            options.push({ label: 'Epoch (1970-01-01)', value: `'1970-01-01'` });
             break;
         case 'time':
-            options.push({ label: 'CURRENT_TIME', value: 'CURRENT_TIME' });
-            options.push({ label: 'now()::time', value: 'now()::time' });
-            break;
         case 'timetz':
             options.push({ label: 'CURRENT_TIME', value: 'CURRENT_TIME' });
-            options.push({ label: 'now()::timetz', value: 'now()::timetz' });
             break;
 
         // Boolean
         case 'bool':
         case 'boolean':
+        case 'bit':
             options.push({ label: 'true', value: 'true' });
             options.push({ label: 'false', value: 'false' });
             break;
 
         // UUID
         case 'uuid':
+        case 'uniqueidentifier':
+            options.push({ label: 'Generate UUID (uuid_generate_v4() / UUID())', value: 'uuid_generate_v4()' });
             options.push({ label: 'gen_random_uuid()', value: 'gen_random_uuid()' });
-            options.push({ label: 'uuid_generate_v4()', value: 'uuid_generate_v4()' });
             break;
 
         // Numeric
@@ -96,12 +96,15 @@ function getDefaultOptionsForType(
         case 'int8':
         case 'integer':
         case 'bigint':
+        case 'smallint':
+        case 'int':
             options.push({ label: '0', value: '0' });
             options.push({ label: '1', value: '1' });
             break;
         case 'float4':
         case 'float8':
         case 'double':
+        case 'double precision':
         case 'real':
         case 'numeric':
         case 'decimal':
@@ -113,23 +116,23 @@ function getDefaultOptionsForType(
         case 'text':
         case 'varchar':
         case 'char':
+        case 'nvarchar':
             options.push({ label: "Empty string ''", value: "''" });
             options.push({ label: "'N/A'", value: "'N/A'" });
             break;
 
         // JSON
         case 'json':
-            options.push({ label: 'Empty object {}', value: `'{}'::json` });
-            options.push({ label: 'Empty array []', value: `'[]'::json` });
-            break;
         case 'jsonb':
-            options.push({ label: 'Empty object {}', value: `'{}'::jsonb` });
-            options.push({ label: 'Empty array []', value: `'[]'::jsonb` });
+            options.push({ label: 'Empty object {}', value: `'{}'` });
+            options.push({ label: 'Empty array []', value: `'[]'` });
             break;
 
         // Binary
         case 'bytea':
-            options.push({ label: 'Empty bytea', value: `'\\x'` });
+        case 'blob':
+        case 'binary':
+            options.push({ label: 'Empty binary', value: `'\\x'` });
             break;
     }
 

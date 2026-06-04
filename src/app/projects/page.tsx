@@ -43,7 +43,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"
+import { Show, SignInButton } from "@clerk/nextjs"
 
 interface ProjectUser {
     name?: string | null
@@ -216,12 +216,12 @@ export default function ProjectsPage() {
                                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
                                 <p className="text-muted-foreground mt-1">Design, organize, and collaborate on your data models.</p>
                             </div>
-                            <SignedOut>
+                            <Show when="signed-out">
                                 <SignInButton mode="modal">
                                     <Button size="lg">Log in to create</Button>
                                 </SignInButton>
-                            </SignedOut>
-                            <SignedIn>
+                            </Show>
+                            <Show when="signed-in">
                                 <div className="flex gap-2">
                                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                         <DialogTrigger asChild>
@@ -279,7 +279,7 @@ export default function ProjectsPage() {
                                         </DialogContent>
                                     </Dialog>
                                 </div>
-                            </SignedIn>
+                            </Show>
                         </div>
                     </div>
 

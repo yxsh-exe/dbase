@@ -232,12 +232,6 @@ function Sidebar({
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className
         )}
-        onMouseEnter={() => {
-          if (!isMobile && collapsible === "icon") setOpen(true)
-        }}
-        onMouseLeave={() => {
-          if (!isMobile && collapsible === "icon") setOpen(false)
-        }}
         {...props}
       >
         <div
