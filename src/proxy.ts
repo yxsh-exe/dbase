@@ -1,19 +1,29 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const isProtectedRoute = createRouteMatcher(['/projects(.*)', '/api/projects(.*)']);
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isProtectedRoute = pathname.startsWith('/projects') || pathname.startsWith('/api/projects');
 
-export const proxy = clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.redirect(new URL('/sign-up', req.url));
-    }
+  if (!isProtectedRoute) {
+    return NextResponse.next();
   }
-}, {
-  publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+
+  try {
+    const response = await fetch(new URL('/api/auth/get-session', request.nextUrl.origin), {
+      headers: { cookie: request.headers.get('cookie') || '' },
+    });
+    const session = await response.json();
+
+    if (!session || !session.session) {
+      return NextResponse.redirect(new URL('/sign-in', request.url));
+    }
+  } catch (error) {
+    return NextResponse.redirect(new URL('/sign-in', request.url));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ['/((?!.+\\.)(?!.+__next).*)', '/', '/(api|trpc)(.*)'],

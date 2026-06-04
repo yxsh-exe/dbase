@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToasterProvider } from "@/components/ToasterProvider";
-import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { dark } from "@clerk/themes";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -39,22 +37,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        baseTheme: dark,
-        variables: {
-          colorPrimary: "#3b82f6", // blue-500
-        },
-      }}
-    >
-      <ThemeProvider>
-        <html lang="en" className="dark">
-          <body className={`${inter.variable} ${geistMono.variable} antialiased font-sans`}>
-            {children}
-            <ToasterProvider />
-          </body>
-        </html>
-      </ThemeProvider>
-    </ClerkProvider>
+    <ThemeProvider>
+      <html lang="en" className="dark">
+        <body className={`${inter.variable} ${geistMono.variable} antialiased font-sans`}>
+          {children}
+          <ToasterProvider />
+        </body>
+      </html>
+    </ThemeProvider>
   );
 }

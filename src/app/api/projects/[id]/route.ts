@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import prisma from '../../../../lib/prisma';
 import { Prisma } from '@/generated/client';
-import { getOrCreateUser } from '../../../../lib/auth';
+import { auth } from '../../../../lib/auth';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getOrCreateUser();
+    const session = await auth.api.getSession({ headers: _request.headers });
+    const user = session?.user;
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -29,7 +30,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getOrCreateUser();
+    const session = await auth.api.getSession({ headers: request.headers });
+    const user = session?.user;
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -83,7 +85,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getOrCreateUser();
+    const session = await auth.api.getSession({ headers: _request.headers });
+    const user = session?.user;
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;

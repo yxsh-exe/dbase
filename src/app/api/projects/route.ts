@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import prisma from '../../../lib/prisma';
-import { getOrCreateUser } from '../../../lib/auth';
-
+import { auth } from '../../../lib/auth';
 export async function POST(request: NextRequest) {
   try {
-    const user = await getOrCreateUser();
+    const session = await auth.api.getSession({ headers: request.headers });
+    const user = session?.user;
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getOrCreateUser();
+    const session = await auth.api.getSession({ headers: request.headers });
+    const user = session?.user;
     if (!user) {
       return Response.json([], { status: 200 });
     }

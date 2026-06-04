@@ -9,8 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.4.2",
-    "@clerk/themes": "^2.4.57",
+    "@better-auth/kysely-adapter": "^1.6.14",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@prisma/extension-accelerate": "^3.0.1",
@@ -26,9 +25,11 @@
     "@supabase/supabase-js": "^2.106.2",
     "@use-gesture/react": "^10.3.1",
     "@xyflow/react": "^12.11.0",
+    "better-auth": "^1.6.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "kysely": "^0.28.0",
     "lucide-react": "^1.17.0",
     "next": "^16.2.7",
     "pg": "^8.21.0",

@@ -35,8 +35,7 @@ import dracula from "react-syntax-highlighter/dist/esm/styles/prism/dracula"
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql"
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Show, SignInButton } from "@clerk/nextjs"
-
+import { useSession } from "@/lib/auth-client"
 import type { Edge, Node } from "@xyflow/react"
 import type { TableNodeData } from "@/components/editor/nodes/types/Field"
 import { convertSchema, type SchemaFormat } from "@/components/editor/utils/convertSchema"
@@ -83,6 +82,7 @@ export default function ProjectPage({ params }: PageProps) {
     const [isEditingName, setIsEditingName] = useState(false)
     const [editName, setEditName] = useState("")
     const [isSavingName, setIsSavingName] = useState(false)
+    const { data: session, isPending: isSessionPending } = useSession()
 
     useEffect(() => {
         const load = async () => {
@@ -254,14 +254,13 @@ export default function ProjectPage({ params }: PageProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <Show when="signed-out">
-                            <SignInButton mode="modal">
+                        {!session && !isSessionPending ? (
+                            <Link href="/sign-in">
                                 <Button>
                                     <Edit3 /> Log in to edit
                                 </Button>
-                            </SignInButton>
-                        </Show>
-                        <Show when="signed-in">
+                            </Link>
+                        ) : session ? (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Link href={`/projects/${project.id}/editor`}>
@@ -272,7 +271,7 @@ export default function ProjectPage({ params }: PageProps) {
                                 </TooltipTrigger>
                                 <TooltipContent>Start modeling</TooltipContent>
                             </Tooltip>
-                        </Show>
+                        ) : null}
                         <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="destructive">

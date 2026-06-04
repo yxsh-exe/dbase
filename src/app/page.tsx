@@ -1,10 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { ArrowRight, Check, Code2, Database, DownloadCloud, GitBranch, Network, Shapes, Shield, Users, Zap } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { UserButton } from "@/components/UserButton";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
   return (
     <main className="relative min-h-[100svh] overflow-hidden">
       {/* Background */}
@@ -22,26 +28,29 @@ export default function HomePage() {
           <span className="text-2xl font-bold tracking-wide ">DBase</span>
         </Link>
         <div className="flex items-center gap-3">
-          <Show when="signed-out">
-            <SignInButton mode="modal">
-              <Button variant="outline" size="sm">Log in</Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button size="sm" className="gap-1">
-                Get started
-                <ArrowRight className="size-4" />
-              </Button>
-            </SignUpButton>
-          </Show>
-          <Show when="signed-in">
-            <Link href="/projects">
-              <Button size="sm" className="gap-1">
-                Open app
-                <ArrowRight className="size-4" />
-              </Button>
-            </Link>
-            <UserButton appearance={{ elements: { userButtonAvatarBox: "size-8" } }} />
-          </Show>
+          {!session ? (
+            <>
+              <Link href="/sign-in">
+                <Button variant="outline" size="sm">Log in</Button>
+              </Link>
+              <Link href="/sign-up">
+                <Button size="sm" className="gap-1">
+                  Get started
+                  <ArrowRight className="size-4" />
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/projects">
+                <Button size="sm" className="gap-1">
+                  Open app
+                  <ArrowRight className="size-4" />
+                </Button>
+              </Link>
+              <UserButton />
+            </>
+          )}
         </div>
       </header>
 

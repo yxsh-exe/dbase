@@ -17,8 +17,7 @@ import {
     useUndo,
 } from '@/hooks/useUndo';
 import { validateSchema, ValidationResult } from '@/lib/validation';
-import { Show, SignInButton } from '@clerk/nextjs';
-import {
+import { useSession } from '@/lib/auth-client';import {
     applyEdgeChanges,
     applyNodeChanges,
     Background,
@@ -61,6 +60,7 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
     const [isValidationDialogOpen, setIsValidationDialogOpen] = useState(false);
     const [validationResults, setValidationResults] = useState<ValidationResult | null>(null);
     const [projectName, setProjectName] = useState<string>('Untitled Project');
+    const { data: session, isPending: isSessionPending } = useSession();
 
     // Initialize the undo system
     const {
@@ -705,14 +705,14 @@ export default function ModernSchemaEditor({ params }: { params: Promise<{ id: s
                             <Plus className="h-4 w-4 text-green-400" />
                             Add Table
                         </button>
-                        <Show when="signed-out">
-                            <SignInButton mode="modal">
+                        {!session && !isSessionPending ? (
+                            <Link href="/sign-in">
                                 <button className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 font-medium flex items-center gap-2 transition-colors">
                                     <Save className="h-4 w-4 text-white" />
                                     Log in to save
                                 </button>
-                            </SignInButton>
-                        </Show>
+                            </Link>
+                        ) : null}
                         {/* Save Schema button removed */}
                     </div>
                 </header>

@@ -43,8 +43,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Show, SignInButton } from "@clerk/nextjs"
-
+import { useSession } from "@/lib/auth-client"
+import { UserButton } from "@/components/UserButton"
 interface ProjectUser {
     name?: string | null
     email?: string
@@ -97,6 +97,8 @@ export default function ProjectsPage() {
     const [newProjectName, setNewProjectName] = useState("Untitled project")
     const [newProjectDescription, setNewProjectDescription] = useState("")
     const [newProjectType, setNewProjectType] = useState<"RELATIONAL" | "NOSQL" | "HYBRID" | "">("")
+    
+    const { data: session, isPending: isSessionPending } = useSession()
 
     useEffect(() => {
         void fetchProjects()
@@ -216,13 +218,13 @@ export default function ProjectsPage() {
                                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Projects</h1>
                                 <p className="text-muted-foreground mt-1">Design, organize, and collaborate on your data models.</p>
                             </div>
-                            <Show when="signed-out">
-                                <SignInButton mode="modal">
+                            {!session && !isSessionPending ? (
+                                <Link href="/sign-in">
                                     <Button size="lg">Log in to create</Button>
-                                </SignInButton>
-                            </Show>
-                            <Show when="signed-in">
-                                <div className="flex gap-2">
+                                </Link>
+                            ) : session ? (
+                                <div className="flex gap-2 items-center">
+                                    <UserButton />
                                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                         <DialogTrigger asChild>
                                             <Button size="lg">
@@ -279,7 +281,9 @@ export default function ProjectsPage() {
                                         </DialogContent>
                                     </Dialog>
                                 </div>
-                            </Show>
+                            ) : (
+                                <Skeleton className="h-10 w-32" />
+                            )}
                         </div>
                     </div>
 
