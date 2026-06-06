@@ -189,10 +189,8 @@ export const FieldDialog = ({
                 setDefaultValue(field.defaultValue || '');
                 setCheckConstraint(field.check || '');
                 
-                // Convert legacy constraints to new format
-                const fieldConstraints = field.constraints
-                    ? field.constraints.map(c => c.type)
-                    : legacyFormatToConstraints(field);
+                // Always derive from legacy format as Sidebar UI only updates legacy flags
+                const fieldConstraints = legacyFormatToConstraints(field);
                 setConstraints(fieldConstraints);
             } else {
                 setFieldName("");

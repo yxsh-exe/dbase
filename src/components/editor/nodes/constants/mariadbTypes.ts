@@ -1,0 +1,15 @@
+export const MARIADB_TYPES: Record<string, readonly string[]> = {
+  'Integer': ['tinyint', 'smallint', 'int', 'integer', 'mediumint', 'bigint'],
+  'Exact Decimal': ['decimal', 'numeric'],
+  'Float': ['float', 'double', 'real'],
+  'Character': ['char', 'varchar', 'text', 'longtext', 'mediumtext', 'tinytext'],
+  'Unicode': ['nchar', 'nvarchar'],
+  'Binary': ['binary', 'varbinary', 'blob', 'longblob', 'mediumblob', 'tinyblob', 'bit'],
+  'Boolean': ['tinyint(1)', 'boolean'],
+  'Date & Time': ['date', 'time', 'datetime', 'timestamp', 'year'],
+  'UUID / GUID': ['uuid'],
+  'JSON': ['json'],
+  'Enum / Set': ['enum', 'set'],
+  'Network': ['inet4', 'inet6'],
+  'Geometric / Spatial': ['point', 'linestring', 'polygon', 'geometry'],
+} as const;

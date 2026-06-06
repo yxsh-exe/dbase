@@ -1,26 +1,8 @@
 "use client"
 
-import {
-    ArrowUpDown,
-    CalendarClock,
-    CalendarPlus,
-    Database,
-    Database as DatabaseIcon,
-    Filter,
-    Grid2X2 as Grid,
-    Rows as List,
-    Plus,
-    Search,
-    Trash2
-} from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
-import { toast } from "react-hot-toast"
-
+import { useSession } from "@/components/AuthProvider"
 import { TableNodeData } from "@/components/editor/nodes/types/Field"
-import { Edge, Node } from "@xyflow/react"
-
+import { MsSqlLogo, MysqlLogo, PostgresLogo, SqliteLogo } from "@/components/Logos"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,8 +25,36 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useSession } from "@/lib/auth-client"
 import { UserButton } from "@/components/UserButton"
+import { Edge, Node } from "@xyflow/react"
+import {
+    ArrowUpDown,
+    CalendarClock,
+    CalendarPlus,
+    Database,
+    Database as DatabaseIcon,
+    Filter,
+    Grid2X2 as Grid,
+    Rows as List,
+    Plus,
+    Search,
+    Trash2
+} from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { toast } from "react-hot-toast"
+
+const ProjectIcon = ({ type, className }: { type?: string | null, className?: string }) => {
+    switch (type) {
+        case 'PostgreSQL': return <PostgresLogo className={className} />;
+        case 'MySQL': return <MysqlLogo className={className} />;
+        case 'MariaDB': return <MysqlLogo className={className} />;
+        case 'SQLite': return <SqliteLogo className={className} />;
+        case 'SQL Server': return <MsSqlLogo className={className} />;
+        default: return <Database className={className} />;
+    }
+};
 interface ProjectUser {
     name?: string | null
     email?: string
@@ -61,7 +71,7 @@ interface Project {
     createdAt: string
     updatedAt?: string
     description?: string
-    type?: "RELATIONAL" | "NOSQL" | "HYBRID"
+    type?: "RELATIONAL" | "NOSQL" | string
     user?: ProjectUser
 }
 
@@ -71,8 +81,8 @@ async function createProject(name: string, description?: string, type?: string):
     const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            name, 
+        body: JSON.stringify({
+            name,
             schema: { nodes: [], edges: [] },
             description: description || null,
             type: type || null
@@ -81,23 +91,22 @@ async function createProject(name: string, description?: string, type?: string):
     if (!response.ok) throw new Error("Failed to create project")
     return response.json()
 }
-    
+
 export default function ProjectsPage() {
     const router = useRouter()
     const [projects, setProjects] = useState<Project[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
-    const [filterType, setFilterType] = useState<"ALL" | "RELATIONAL" | "NOSQL" | "HYBRID">("ALL")
+    const [filterType, setFilterType] = useState<"ALL" | "RELATIONAL" | "NOSQL">("ALL")
     const [sortBy, setSortBy] = useState<SortOption>("updatedDesc")
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [isDeleteOpen, setIsDeleteOpen] = useState(false)
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
     const [newProjectName, setNewProjectName] = useState("Untitled project")
-    const [newProjectDescription, setNewProjectDescription] = useState("")
-    const [newProjectType, setNewProjectType] = useState<"RELATIONAL" | "NOSQL" | "HYBRID" | "">("")
-    
+    const [newProjectType, setNewProjectType] = useState<"MySQL" | "PostgreSQL" | "SQLite" | "SQL Server" | "">("")
+
     const { data: session, isPending: isSessionPending } = useSession()
 
     useEffect(() => {
@@ -107,7 +116,7 @@ export default function ProjectsPage() {
     async function fetchProjects() {
         try {
             setLoading(true)
-            const response = await fetch("/api/projects")
+            const response = await fetch("/api/projects", { cache: "no-store" })
             if (!response.ok) throw new Error("Failed to fetch projects")
             const data = await response.json()
             setProjects(data)
@@ -125,14 +134,13 @@ export default function ProjectsPage() {
             const projectName = (customName ?? newProjectName ?? "Untitled project").trim()
             const newProject = await createProject(
                 projectName || `New Project ${new Date().toISOString()}`,
-                newProjectDescription.trim() || undefined,
+                undefined,
                 newProjectType || undefined
             )
             await fetchProjects()
             setIsCreateOpen(false)
             // Reset form fields
             setNewProjectName("Untitled project")
-            setNewProjectDescription("")
             setNewProjectType("")
             toast.success("Project created")
             router.push(`/projects/${newProject.id}/editor`)
@@ -185,11 +193,13 @@ export default function ProjectsPage() {
     const getTypeBadgeVariant = (type?: string) => {
         switch (type) {
             case "RELATIONAL":
+            case "MySQL":
+            case "PostgreSQL":
+            case "SQLite":
+            case "SQL Server":
                 return "secondary" as const
             case "NOSQL":
                 return "outline" as const
-            case "HYBRID":
-                return "default" as const
             default:
                 return "outline" as const
         }
@@ -246,26 +256,25 @@ export default function ProjectsPage() {
                                                         placeholder="e.g. E‑commerce database"
                                                     />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-sm font-medium">Database type</label>
-                                                    <Select value={newProjectType} onValueChange={(value) => setNewProjectType(value as typeof newProjectType)}>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select database type" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="RELATIONAL">Relational (SQL)</SelectItem>
-                                                            <SelectItem value="NOSQL">NoSQL</SelectItem>
-                                                            <SelectItem value="HYBRID">Hybrid</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-sm font-medium">Description</label>
-                                                    <Input
-                                                        value={newProjectDescription}
-                                                        onChange={(e) => setNewProjectDescription(e.target.value)}
-                                                        placeholder="Brief description of your project (optional)"
-                                                    />
+                                                <div className="space-y-3 pt-2">
+                                                    <label className="text-sm font-medium">Database</label>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                        {[
+                                                            { id: 'MySQL', label: 'MySQL', Icon: MysqlLogo },
+                                                            { id: 'PostgreSQL', label: 'PostgreSQL', Icon: PostgresLogo },
+                                                            { id: 'SQLite', label: 'SQLite', Icon: SqliteLogo },
+                                                            { id: 'SQL Server', label: 'SQL Server', Icon: MsSqlLogo },
+                                                        ].map((db) => (
+                                                            <button
+                                                                key={db.id}
+                                                                onClick={() => setNewProjectType(db.id as any)}
+                                                                className={`flex flex-col items-center justify-center p-4 border rounded-xl hover:bg-accent/50 transition-colors ${newProjectType === db.id ? 'border-primary bg-primary/10' : 'border-border bg-card'}`}
+                                                            >
+                                                                <db.Icon className="w-10 h-10 mb-2" />
+                                                                <span className="text-[11px] font-medium">{db.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <DialogFooter>
@@ -273,11 +282,10 @@ export default function ProjectsPage() {
                                                     setIsCreateOpen(false)
                                                     // Reset form fields
                                                     setNewProjectName("Untitled project")
-                                                    setNewProjectDescription("")
                                                     setNewProjectType("")
                                                 }}>Cancel</Button>
                                                 <Button onClick={() => void handleCreateProject()}>Create</Button>
-                                                </DialogFooter>
+                                            </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
                                 </div>
@@ -304,17 +312,15 @@ export default function ProjectsPage() {
                                     <SelectTrigger aria-label="Filter by project type" className="w-[140px]">
                                         <DatabaseIcon className="mr-2 h-4 w-4" />
                                         <SelectValue>
-                                            {filterType === "ALL" ? "All types" : 
-                                            filterType === "RELATIONAL" ? "Relational" :
-                                            filterType === "NOSQL" ? "NoSQL" :
-                                            filterType === "HYBRID" ? "Hybrid" : "Type"}
+                                            {filterType === "ALL" ? "All types" :
+                                                filterType === "RELATIONAL" ? "Relational" :
+                                                    filterType === "NOSQL" ? "NoSQL" : "Type"}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="ALL">All types</SelectItem>
                                         <SelectItem value="RELATIONAL">Relational</SelectItem>
                                         <SelectItem value="NOSQL">NoSQL</SelectItem>
-                                        <SelectItem value="HYBRID">Hybrid</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
@@ -322,8 +328,8 @@ export default function ProjectsPage() {
                                         <ArrowUpDown className="mr-2 h-4 w-4" />
                                         <SelectValue>
                                             {sortBy === "updatedDesc" ? "Recently updated" :
-                                             sortBy === "createdDesc" ? "Recently created" :
-                                             sortBy === "nameAsc" ? "Name A→Z" : "Sort by"}
+                                                sortBy === "createdDesc" ? "Recently created" :
+                                                    sortBy === "nameAsc" ? "Name A→Z" : "Sort by"}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
@@ -384,15 +390,23 @@ export default function ProjectsPage() {
                                 <div />
                                 <div className="p-6">
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <h3 className="font-semibold truncate text-lg">{project.name}</h3>
-                                            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                                                {project.user?.name && <span className="truncate">{project.user.name}</span>}
-                                                {project.type && (
-                                                    <Badge variant={getTypeBadgeVariant(project.type)}>{project.type}</Badge>
-                                                )}
-                                            </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="font-semibold truncate text-lg">
+                                                {project.name}
+                                            </h3>
                                         </div>
+                                        {project.type && (
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <div className="shrink-0 flex items-center justify-center p-1 transition-opacity hover:opacity-80 cursor">
+                                                        <ProjectIcon type={project.type} className="w-7 h-7" />
+                                                    </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    {project.type}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        )}
                                     </div>
                                     {project.description && (
                                         <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
@@ -476,23 +490,37 @@ export default function ProjectsPage() {
                                         <span>{project.schema?.nodes?.length ?? 0} tables</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Link href={`/projects/${project.id}`}>
-                                        <Button variant="outline">View</Button>
-                                    </Link>
-                                    <Link href={`/projects/${project.id}/editor`}>
-                                        <Button>Edit</Button>
-                                    </Link>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => {
-                                            setProjectToDelete(project)
-                                            setIsDeleteOpen(true)
-                                        }}
-                                    >
-                                        <Trash2 className="size-4" />
-                                    </Button>
+                                <div className="flex items-center gap-4 shrink-0">
+                                    {project.type && (
+                                        <Tooltip>
+                                            <TooltipTrigger>
+                                                <div className="flex items-center justify-center p-1 transition-opacity hover:opacity-80 cursor-help">
+                                                    <ProjectIcon type={project.type} className="w-7 h-7" />
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {project.type} Database
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <Link href={`/projects/${project.id}`}>
+                                            <Button variant="outline">View</Button>
+                                        </Link>
+                                        <Link href={`/projects/${project.id}/editor`}>
+                                            <Button>Edit</Button>
+                                        </Link>
+                                        <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => {
+                                                setProjectToDelete(project)
+                                                setIsDeleteOpen(true)
+                                            }}
+                                        >
+                                            <Trash2 className="size-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         ))}

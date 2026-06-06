@@ -198,9 +198,22 @@ export function generateSql(nodes: Node<TableNodeData>[], dialect: SqlDialect = 
       columnLines.push(`PRIMARY KEY (${pkFields.join(', ')})`);
     }
 
+    if (node.data.checkConstraints?.length) {
+      for (const chk of node.data.checkConstraints) {
+        columnLines.push(`CONSTRAINT ${quoteIdent(chk.name, dialect)} CHECK (${chk.condition})`);
+      }
+    }
+
     columnLines.push(...fkLines);
     const createStmt = `CREATE TABLE ${qTableName} (\n  ${columnLines.join(',\n  ')}\n);`;
     statements.push(createStmt);
+
+    if (node.data.indexes?.length) {
+      for (const idx of node.data.indexes) {
+        const columnsStr = idx.columns?.length ? idx.columns.map(c => quoteIdent(c, dialect)).join(', ') : '/* specify columns */';
+        statements.push(`CREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX ${quoteIdent(idx.name, dialect)} ON ${qTableName} (${columnsStr});`);
+      }
+    }
   }
 
   return statements.join('\n\n');
@@ -256,6 +269,24 @@ datasource db {
             relatedModel,
           )} ${relatedModel}? @relation(fields: [${fkField}], references: [${refField}])`,
         );
+      }
+    }
+
+    // Add indexes and constraints
+    if (node.data.indexes?.length) {
+      for (const idx of node.data.indexes) {
+        if (idx.columns?.length) {
+          const cols = idx.columns.join(', ');
+          lines.push(`  @@index([${cols}], map: "${idx.name}")`);
+        } else {
+          lines.push(`  // @@index([], map: "${idx.name}") // Add columns to index`);
+        }
+      }
+    }
+    
+    if (node.data.checkConstraints?.length) {
+      for (const chk of node.data.checkConstraints) {
+        lines.push(`  // @@check("${chk.name}", "${chk.condition}") // Prisma check constraints are not natively supported in schema except via extensions or SQL`);
       }
     }
 
@@ -319,9 +350,32 @@ export function generateDrizzle(nodes: Node<TableNodeData>[]): string {
       columnLines.push(`  ${field.name}: ${parts.join('')},`);
     }
 
-    blocks.push(
-      `export const ${tableConst} = pgTable('${tableName}', {\n${columnLines.join('\n')}\n});\n`,
-    );
+    const extras: string[] = [];
+    if (node.data.indexes?.length) {
+      for (const idx of node.data.indexes) {
+        if (idx.columns?.length) {
+          const cols = idx.columns.map(c => `table.${c}`).join(', ');
+          extras.push(`    ${idx.name}: index('${idx.name}').on(${cols})`);
+        } else {
+          extras.push(`    // ${idx.name}: index('${idx.name}').on(/* columns */)`);
+        }
+      }
+    }
+    if (node.data.checkConstraints?.length) {
+      for (const chk of node.data.checkConstraints) {
+        extras.push(`    ${chk.name}: check('${chk.name}', sql\`${chk.condition}\`)`);
+      }
+    }
+
+    if (extras.length > 0) {
+      blocks.push(
+        `export const ${tableConst} = pgTable('${tableName}', {\n${columnLines.join('\n')}\n}, (table) => ({\n${extras.join(',\n')}\n}));\n`,
+      );
+    } else {
+      blocks.push(
+        `export const ${tableConst} = pgTable('${tableName}', {\n${columnLines.join('\n')}\n});\n`,
+      );
+    }
   }
 
   return blocks.join('\n');

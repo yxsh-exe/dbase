@@ -74,14 +74,14 @@ export const validateConstraintCombination = (constraints: ConstraintType[]): st
   return errors;
 };
 
-// Helper function to convert constraints to legacy boolean format
 export const constraintsToLegacyFormat = (constraints: ConstraintType[]) => {
   const constraintSet = new Set(constraints);
   return {
     primary: constraintSet.has('primary_key'),
     unique: constraintSet.has('unique') || constraintSet.has('primary_key'),
     nullable: constraintSet.has('nullable') || (!constraintSet.has('not_null') && !constraintSet.has('primary_key')),
-    foreign: constraintSet.has('foreign_key')
+    foreign: constraintSet.has('foreign_key'),
+    identity: constraintSet.has('identity')
   };
 };
 
@@ -91,6 +91,7 @@ export const legacyFormatToConstraints = (field: {
   unique?: boolean;
   nullable?: boolean;
   foreign?: boolean;
+  identity?: boolean;
 }): ConstraintType[] => {
   const constraints: ConstraintType[] = [];
 
@@ -102,6 +103,7 @@ export const legacyFormatToConstraints = (field: {
     else if (field.nullable === true) constraints.push('nullable');
   }
   if (field.foreign) constraints.push('foreign_key');
+  if (field.identity) constraints.push('identity');
 
   return constraints;
 };
@@ -152,8 +154,8 @@ export function ConstraintSelector({
     // Create a copy of available options with dynamic disabled state
     finalOptions = availableOptions.map(option => ({
       ...option,
-      // Disable nullable option when primary key is selected
-      disabled: option.value === 'nullable' && isPrimaryKeySelected
+      // Disable nullable and unique options when primary key is selected
+      disabled: (option.value === 'nullable' || option.value === 'unique') && isPrimaryKeySelected
     }));
   }
 

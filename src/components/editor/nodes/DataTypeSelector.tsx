@@ -9,8 +9,33 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { POSTGRESQL_TYPES } from './constants/postgresTypes';
 import { Badge } from '@/components/ui/badge';
+import { 
+  POSTGRESQL_TYPES, 
+  MYSQL_TYPES, 
+  MARIADB_TYPES, 
+  SQLSERVER_TYPES, 
+  SQLITE_TYPES, 
+  ORACLE_TYPES 
+} from './constants';
+
+export const getDbTypes = (projectType?: string | null): Record<string, readonly string[]> => {
+  switch (projectType) {
+    case 'MySQL':
+      return MYSQL_TYPES;
+    case 'MariaDB':
+      return MARIADB_TYPES;
+    case 'SQL Server':
+      return SQLSERVER_TYPES;
+    case 'SQLite':
+      return SQLITE_TYPES;
+    case 'Oracle':
+      return ORACLE_TYPES;
+    case 'PostgreSQL':
+    default:
+      return POSTGRESQL_TYPES;
+  }
+};
 
 interface DataTypeSelectorProps {
   value: string;
@@ -20,6 +45,8 @@ interface DataTypeSelectorProps {
   length?: number;
   precision?: number;
   scale?: number;
+  projectType?: string | null;
+  hideSize?: boolean;
 }
 
 export function DataTypeSelector({
@@ -29,9 +56,12 @@ export function DataTypeSelector({
   compact = false,
   length,
   precision,
-  scale
+  scale,
+  projectType,
+  hideSize = false
 }: DataTypeSelectorProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>('Character');
+  const dbTypes = getDbTypes(projectType);
+  const [selectedCategory, setSelectedCategory] = useState<string>(Object.keys(dbTypes)[0] || 'Character');
   const [selectedType, setSelectedType] = useState(value || 'varchar');
   const [typeLength, setTypeLength] = useState<string>(length?.toString() || '');
   const [typePrecision, setTypePrecision] = useState<string>(precision?.toString() || '');
@@ -40,20 +70,19 @@ export function DataTypeSelector({
   // Initialize category based on current type
   useEffect(() => {
     const baseType = value?.replace('[]', '') || 'varchar';
-    const category = Object.entries(POSTGRESQL_TYPES).find(([, types]) =>
+    const category = Object.entries(dbTypes).find(([, types]) =>
       types.includes(baseType)
-    )?.[0] || 'Character';
+    )?.[0] || Object.keys(dbTypes)[0];
     setSelectedCategory(category);
     setSelectedType(baseType);
-  }, [value]);
+  }, [value, dbTypes]);
 
   const handleTypeChange = (newType: string) => {
     setSelectedType(newType);
 
     // Determine if type needs parameters
-    const needsLength = ['varchar', 'char'].includes(newType);
-    const needsPrecisionScale = ['numeric', 'decimal'].includes(newType);
-
+    const needsLength = ['varchar', 'char', 'varchar2', 'nvarchar', 'nvarchar2', 'varbinary'].includes(newType);
+    const needsPrecisionScale = ['numeric', 'decimal', 'number'].includes(newType);
 
     // Call onChange with appropriate parameters
     const lengthValue = needsLength && typeLength ? parseInt(typeLength) : undefined;
@@ -71,18 +100,18 @@ export function DataTypeSelector({
     onChange(selectedType, lengthValue, precisionValue, scaleValue);
   };
 
-  const needsLength = ['varchar', 'char'].includes(selectedType);
-  const needsPrecisionScale = ['numeric', 'decimal'].includes(selectedType);
+  const needsLength = ['varchar', 'char', 'varchar2', 'nvarchar', 'nvarchar2', 'varbinary'].includes(selectedType);
+  const needsPrecisionScale = ['numeric', 'decimal', 'number'].includes(selectedType);
 
   if (compact) {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
         <Select value={selectedType} onValueChange={handleTypeChange}>
-          <SelectTrigger className="h-8 text-xs border-zinc-600 bg-zinc-800 text-white">
+          <SelectTrigger className="h-6 text-[10px] px-1.5 border-zinc-600 bg-zinc-800 text-white">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-zinc-900 border-white">
-            {Object.entries(POSTGRESQL_TYPES).map(([category, types]) => (
+            {Object.entries(dbTypes).map(([category, types]) => (
               <div key={category}>
                 <div className="px-2 py-1 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
                   {category}
@@ -101,7 +130,7 @@ export function DataTypeSelector({
           </SelectContent>
         </Select>
 
-        {(needsLength || needsPrecisionScale) && (
+        {!hideSize && (needsLength || needsPrecisionScale) && (
           <div className="flex items-center gap-1 ">
             {needsLength && (
               <Input
@@ -112,7 +141,7 @@ export function DataTypeSelector({
                   setTimeout(handleParameterChange, 100);
                 }}
                 placeholder="255"
-                className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+                className="w-12 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
               />
             )}
             {needsPrecisionScale && (
@@ -125,9 +154,9 @@ export function DataTypeSelector({
                     setTimeout(handleParameterChange, 100);
                   }}
                   placeholder="10"
-                  className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+                  className="w-10 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                 />
-                <span className="text-zinc-400 text-xs">**</span>
+                <span className="text-zinc-400 text-xs mt-1">,</span>
                 <Input
                   type="number"
                   value={typeScale}
@@ -136,7 +165,7 @@ export function DataTypeSelector({
                     setTimeout(handleParameterChange, 100);
                   }}
                   placeholder="2"
-                  className="w-16 h-8 px-1 text-xs border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+                  className="w-10 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                 />
               </>
             )}
@@ -156,7 +185,7 @@ export function DataTypeSelector({
             value={selectedCategory}
             onValueChange={(category) => {
               setSelectedCategory(category);
-              const firstType = POSTGRESQL_TYPES[category as keyof typeof POSTGRESQL_TYPES][0];
+              const firstType = dbTypes[category][0];
               handleTypeChange(firstType);
             }}
           >
@@ -164,7 +193,7 @@ export function DataTypeSelector({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-zinc-900 border-2 border-white rounded-none">
-              {Object.keys(POSTGRESQL_TYPES).map(category => (
+              {Object.keys(dbTypes).map(category => (
                 <SelectItem key={category} value={category} className="text-zinc-100 focus:bg-zinc-800 rounded-none">
                   {category}
                 </SelectItem>
@@ -180,7 +209,7 @@ export function DataTypeSelector({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-zinc-900 border-2 border-white rounded-none">
-              {POSTGRESQL_TYPES[selectedCategory as keyof typeof POSTGRESQL_TYPES].map(type => (
+              {dbTypes[selectedCategory]?.map(type => (
                 <SelectItem key={type} value={type} className="text-zinc-100 focus:bg-zinc-800 rounded-none">
                   {type}
                 </SelectItem>

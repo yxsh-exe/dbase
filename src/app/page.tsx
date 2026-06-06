@@ -7,9 +7,14 @@ import { headers } from "next/headers";
 import { UserButton } from "@/components/UserButton";
 
 export default async function HomePage() {
-  const session = await auth.api.getSession({
-    headers: await headers()
-  });
+  let session = null;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers()
+    });
+  } catch (e) {
+    console.error('[HomePage] Failed to get session:', (e as Error).message);
+  }
 
   return (
     <main className="relative min-h-[100svh] overflow-hidden">
@@ -76,8 +81,8 @@ export default async function HomePage() {
 
         {/* Mock preview */}
         <div className="mt-14 w-full">
-          <div className="mx-auto w-full overflow-hidden rounded-xl border border-border bg-card/50 shadow-2xl ring-1 ring-black/5 backdrop-blur-md">
-            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2">
+          <div className="mx-auto w-full overflow-hidden rounded-xl border border-border bg-card shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center gap-2 border-b border-border bg-zinc-950 px-4 py-3">
               <div className="size-3 rounded-full bg-red-500/80" />
               <div className="size-3 rounded-full bg-yellow-500/80" />
               <div className="size-3 rounded-full bg-green-500/80" />

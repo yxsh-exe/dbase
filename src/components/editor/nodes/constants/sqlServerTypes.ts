@@ -1,0 +1,15 @@
+export const SQLSERVER_TYPES: Record<string, readonly string[]> = {
+  'Integer': ['tinyint', 'smallint', 'int', 'bigint'],
+  'Exact Decimal': ['decimal', 'numeric'],
+  'Float': ['real', 'float'],
+  'Currency': ['money', 'smallmoney'],
+  'Character': ['char', 'varchar', 'varchar(max)'],
+  'Unicode': ['nchar', 'nvarchar', 'nvarchar(max)'],
+  'Binary': ['binary', 'varbinary', 'varbinary(max)', 'bit'],
+  'Boolean': ['bit'],
+  'Date & Time': ['date', 'time', 'datetime2', 'datetimeoffset', 'datetime', 'smalldatetime'],
+  'UUID / GUID': ['uniqueidentifier'],
+  'XML': ['xml'],
+  'Geometric / Spatial': ['geometry', 'geography'],
+  'Special / misc': ['sql_variant', 'hierarchyid', 'cursor', 'table'],
+} as const;

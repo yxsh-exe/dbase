@@ -27,6 +27,7 @@ export interface Field {
   nullable?: boolean;
   unique?: boolean;
   foreign?: boolean;
+  identity?: boolean;
   // Enhanced constraint system
   constraints?: EnhancedConstraint[];
   length?: number;
@@ -47,15 +48,31 @@ export interface TableReference {
   referencedField: string;
 }
 
+export interface TableIndex {
+  name: string;
+  columns: string[];
+  unique?: boolean;
+}
+
+export interface CheckConstraint {
+  name: string;
+  condition: string;
+}
+
 export interface TableNodeData extends Record<string, unknown> {
   name: string;
   fields: Field[];
   color?: string; 
   references?: TableReference[];
+  indexes?: TableIndex[];
+  checkConstraints?: CheckConstraint[];
+  comment?: string;
   onUpdateTable?: (tableId: string, data: Partial<TableNodeData>) => void;
   onRemoveTable?: (tableId: string) => void;
   onAddField?: (tableId: string, field: Field) => void;
   onRemoveField?: (tableId: string, fieldIndex: number) => void;
   onUpdateField?: (tableId: string, fieldIndex: number, field: Field) => void;
   onTableClick?: (tableId: string) => void;
+  onAddIndex?: (tableId: string, index: TableIndex) => void;
+  onRemoveIndex?: (tableId: string, indexIdx: number) => void;
 }

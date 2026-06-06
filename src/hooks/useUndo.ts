@@ -243,52 +243,287 @@ export class DeleteTableCommand implements Command {
 
 export class UpdateTableCommand implements Command {
   name = 'Update Table';
+  private oldNodesState?: Record<string, Node<TableNodeData>>;
+  private oldEdgesState?: Record<string, Edge>;
 
   constructor(
     private tableId: string,
     private newData: Partial<TableNodeData>,
-    private oldData?: Partial<TableNodeData>,
   ) {}
 
   execute(currentState: EditorState): EditorState {
-    return {
-      ...currentState,
-      nodes: currentState.nodes.map((node) => {
-        if (node.id === this.tableId) {
-          // Store old data for undo
-          if (!this.oldData) {
-            this.oldData = { ...node.data };
+    const targetNode = currentState.nodes.find(n => n.id === this.tableId);
+    if (!targetNode) return currentState;
+
+    if (!this.oldNodesState) {
+      this.oldNodesState = {};
+      this.oldEdgesState = {};
+    }
+
+    if (!this.oldNodesState[this.tableId]) {
+      this.oldNodesState[this.tableId] = { ...targetNode };
+    }
+
+    let updatedNodes = [...currentState.nodes];
+    let updatedEdges = [...currentState.edges];
+
+    const oldTableName = targetNode.data.name;
+    const newTableName = this.newData.name;
+    const isTableNameChanged = newTableName && newTableName !== oldTableName;
+
+    // 1. Update the target node itself
+    updatedNodes = updatedNodes.map((node) => {
+      if (node.id === this.tableId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            ...this.newData,
+          },
+        };
+      }
+      return node;
+    });
+
+    // 2. Cascade table name changes
+    if (isTableNameChanged) {
+      // Update edges
+      updatedEdges = updatedEdges.map(edge => {
+        let changed = false;
+        let newEdgeData = { ...(edge.data as any) };
+        if (edge.source === this.tableId) {
+          newEdgeData.sourceTable = newTableName;
+          changed = true;
+        }
+        if (edge.target === this.tableId) {
+          newEdgeData.targetTable = newTableName;
+          changed = true;
+        }
+        if (changed) {
+          if (!this.oldEdgesState![edge.id]) this.oldEdgesState![edge.id] = { ...edge };
+          return { ...edge, data: newEdgeData };
+        }
+        return edge;
+      });
+
+      // Update referencedTable in other nodes' fields
+      updatedNodes = updatedNodes.map(node => {
+        if (node.id === this.tableId) return node; // already updated
+
+        let nodeChanged = false;
+        const newFields = node.data.fields.map(field => {
+          if (field.foreign && field.referencedTable === oldTableName) {
+            nodeChanged = true;
+            
+            let newFieldName = field.name;
+            const oldDefaultFkName = `${oldTableName.toLowerCase()}_id`;
+            const newDefaultFkName = `${newTableName!.toLowerCase()}_id`;
+            
+            if (field.name.toLowerCase() === oldDefaultFkName) {
+                newFieldName = newDefaultFkName;
+            } else if (field.name.includes(oldTableName)) {
+                newFieldName = field.name.replace(oldTableName, newTableName!);
+            } else if (field.name.includes(oldTableName.toLowerCase())) {
+                newFieldName = field.name.replace(oldTableName.toLowerCase(), newTableName!.toLowerCase());
+            } else {
+                newFieldName = newDefaultFkName;
+            }
+
+            if (newFieldName !== field.name) {
+               updatedEdges = updatedEdges.map(edge => {
+                  if (edge.target === node.id && (edge.data as any)?.targetField === field.name) {
+                     if (!this.oldEdgesState![edge.id]) this.oldEdgesState![edge.id] = { ...edge };
+                     return { ...edge, data: { ...(edge.data as any), targetField: newFieldName } };
+                  }
+                  return edge;
+               });
+            }
+
+            return { ...field, referencedTable: newTableName, name: newFieldName };
           }
+          return field;
+        });
+
+        if (nodeChanged) {
+          if (!this.oldNodesState![node.id]) this.oldNodesState![node.id] = { ...node };
           return {
             ...node,
-            data: {
-              ...node.data,
-              ...this.newData,
-            },
+            data: { ...node.data, fields: newFields }
           };
         }
         return node;
-      }),
+      });
+    }
+
+    return {
+      ...currentState,
+      nodes: updatedNodes,
+      edges: updatedEdges,
     };
   }
 
   undo(currentState: EditorState): EditorState {
-    if (!this.oldData) return currentState;
+    if (!this.oldNodesState || !this.oldEdgesState) return currentState;
+
+    const oldNodesState = this.oldNodesState;
+    const oldEdgesState = this.oldEdgesState;
+
+    const updatedNodes = currentState.nodes.map(node => {
+      if (oldNodesState[node.id]) {
+        return oldNodesState[node.id];
+      }
+      return node;
+    });
+
+    const updatedEdges = currentState.edges.map(edge => {
+      if (oldEdgesState[edge.id]) {
+        return oldEdgesState[edge.id];
+      }
+      return edge;
+    });
 
     return {
       ...currentState,
-      nodes: currentState.nodes.map((node) => {
-        if (node.id === this.tableId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...this.oldData,
-            },
-          };
-        }
-        return node;
-      }),
+      nodes: updatedNodes,
+      edges: updatedEdges,
+    };
+  }
+}
+
+export class UpdateFieldCommand implements Command {
+  name = 'Update Field';
+  private oldNodesState?: Record<string, Node<TableNodeData>>;
+  private oldEdgesState?: Record<string, Edge>;
+
+  constructor(
+    private tableId: string,
+    private fieldIndex: number,
+    private updatedField: Field,
+  ) {}
+
+  execute(currentState: EditorState): EditorState {
+    const targetNode = currentState.nodes.find(n => n.id === this.tableId);
+    if (!targetNode) return currentState;
+
+    if (!this.oldNodesState) {
+      this.oldNodesState = {};
+      this.oldEdgesState = {};
+    }
+
+    if (!this.oldNodesState[this.tableId]) {
+      this.oldNodesState[this.tableId] = { ...targetNode };
+    }
+
+    let updatedNodes = [...currentState.nodes];
+    let updatedEdges = [...currentState.edges];
+
+    const oldField = targetNode.data.fields[this.fieldIndex];
+    if (!oldField) return currentState; // Should not happen
+
+    const newField = this.updatedField;
+    const nameChanged = oldField.name !== newField.name;
+    const typeChanged = oldField.type !== newField.type || oldField.length !== newField.length || oldField.precision !== newField.precision || oldField.scale !== newField.scale;
+
+    // 1. Update the target node itself
+    updatedNodes = updatedNodes.map((node) => {
+      if (node.id === this.tableId) {
+        const newFields = [...node.data.fields];
+        newFields[this.fieldIndex] = newField;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            fields: newFields,
+          },
+        };
+      }
+      return node;
+    });
+
+    // 2. Cascade field changes
+    if (nameChanged || typeChanged) {
+      const outgoingEdges = currentState.edges.filter(e => e.source === this.tableId);
+      const relatedEdges = outgoingEdges.filter(e => (e.data as any)?.sourceField === oldField.name);
+
+      if (relatedEdges.length > 0) {
+        relatedEdges.forEach(edge => {
+          // Update the edge data if name changed
+          if (nameChanged) {
+            updatedEdges = updatedEdges.map(e => {
+              if (e.id === edge.id) {
+                if (!this.oldEdgesState![e.id]) this.oldEdgesState![e.id] = { ...e };
+                return { ...e, data: { ...(e.data as any), sourceField: newField.name } };
+              }
+              return e;
+            });
+          }
+
+          // Update the referencing field in the target node
+          updatedNodes = updatedNodes.map(node => {
+            if (node.id === edge.target) {
+              const targetFieldName = (edge.data as any)?.targetField;
+              let nodeChanged = false;
+              const updatedTargetFields = node.data.fields.map(tf => {
+                if (tf.name === targetFieldName) {
+                  nodeChanged = true;
+                  let changedTF = { ...tf };
+                  if (nameChanged) changedTF.referencedField = newField.name;
+                  if (typeChanged) {
+                    changedTF.type = newField.type;
+                    changedTF.length = newField.length;
+                    changedTF.precision = newField.precision;
+                    changedTF.scale = newField.scale;
+                  }
+                  return changedTF;
+                }
+                return tf;
+              });
+
+              if (nodeChanged) {
+                if (!this.oldNodesState![node.id]) this.oldNodesState![node.id] = { ...node };
+                return {
+                  ...node,
+                  data: { ...node.data, fields: updatedTargetFields }
+                };
+              }
+            }
+            return node;
+          });
+        });
+      }
+    }
+
+    return {
+      ...currentState,
+      nodes: updatedNodes,
+      edges: updatedEdges,
+    };
+  }
+
+  undo(currentState: EditorState): EditorState {
+    if (!this.oldNodesState || !this.oldEdgesState) return currentState;
+
+    const oldNodesState = this.oldNodesState;
+    const oldEdgesState = this.oldEdgesState;
+
+    const updatedNodes = currentState.nodes.map(node => {
+      if (oldNodesState[node.id]) {
+        return oldNodesState[node.id];
+      }
+      return node;
+    });
+
+    const updatedEdges = currentState.edges.map(edge => {
+      if (oldEdgesState[edge.id]) {
+        return oldEdgesState[edge.id];
+      }
+      return edge;
+    });
+
+    return {
+      ...currentState,
+      nodes: updatedNodes,
+      edges: updatedEdges,
     };
   }
 }

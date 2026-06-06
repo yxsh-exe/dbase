@@ -2,7 +2,6 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useCallback } from 'react';
 
 export interface KeyboardShortcutsActions {
-  onNewTable: () => void;
   onDeleteSelected: () => void;
   onSave: () => void;
   onExportSchema: () => void;
@@ -19,7 +18,6 @@ export interface KeyboardShortcut {
 }
 
 export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
-  { keys: 'n', description: 'Create new table', category: 'Table Operations' },
   { keys: 'delete', description: 'Delete selected table/field', category: 'Table Operations' },
   { keys: 'ctrl+s', description: 'Save project', category: 'General' },
   { keys: 'ctrl+e', description: 'Export schema', category: 'General' },
@@ -31,7 +29,6 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
 
 export function useKeyboardShortcuts(actions: KeyboardShortcutsActions) {
   const {
-    onNewTable,
     onDeleteSelected,
     onSave,
     onExportSchema,
@@ -40,19 +37,6 @@ export function useKeyboardShortcuts(actions: KeyboardShortcutsActions) {
     onCancelOperation,
     onShowShortcutsHelp,
   } = actions;
-
-  // New table
-  useHotkeys(
-    'n',
-    useCallback((event) => {
-      event.preventDefault();
-      onNewTable();
-    }, [onNewTable]),
-    {
-      enableOnFormTags: false,
-      description: 'Create new table',
-    }
-  );
 
   // Delete selected
   useHotkeys(

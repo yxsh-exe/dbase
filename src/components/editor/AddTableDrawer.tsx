@@ -120,7 +120,7 @@ export function AddTableDrawer({ open, onOpenChange, onCreate, availableTables =
             precision: referencedField.precision,
             scale: referencedField.scale,
             primary: false,
-            nullable: true,
+            nullable: false,
             foreign: true,
             unique: false,
             referencedTable: relation.referencedTable,
