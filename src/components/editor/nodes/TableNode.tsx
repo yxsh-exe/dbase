@@ -173,14 +173,24 @@ export const TableNode = ({
 
     const formatFieldType = (field: Field) => {
         let typeStr = field.type;
-        if (field.length) {
+        const t = typeStr.toLowerCase();
+        const needsLength = ['varchar', 'char', 'varchar2', 'nvarchar', 'nvarchar2', 'varbinary', 'binary', 'nchar'].includes(t);
+        const needsPrecisionScale = ['numeric', 'decimal', 'number'].includes(t);
+
+        if (needsLength && field.length) {
             typeStr += `(${field.length})`;
-        } else if (field.precision && field.scale) {
-            typeStr += `(${field.precision},${field.scale})`;
-        } else if (field.precision) {
-            typeStr += `(${field.precision})`;
+        } else if (needsPrecisionScale && field.precision !== undefined) {
+            if (field.scale !== undefined) {
+                typeStr += `(${field.precision},${field.scale})`;
+            } else {
+                typeStr += `(${field.precision})`;
+            }
+        } else if (!needsLength && !needsPrecisionScale && field.length) {
+            // fallback for any other type if it historically had length but shouldn't, we ignore it.
         }
-        return typeStr;
+
+        typeStr += (field.nullable === false && !field.primary) ? '?' : '';
+        return typeStr.toUpperCase();
     };
 
     const visibleFields = showAllFields ? data.fields : data.fields.slice(0, MAX_VISIBLE_FIELDS);
@@ -298,7 +308,7 @@ export const TableNode = ({
                                                     background: `${typeColor}15`,
                                                 }}
                                             >
-                                                {formatFieldType(field)}{(field.nullable !== false && !field.primary) ? '?' : ''}
+                                                {formatFieldType(field)}{(field.nullable && !field.primary) ? '?' : ''}
                                             </span>
 
                                             {/* Actions (hover only) */}

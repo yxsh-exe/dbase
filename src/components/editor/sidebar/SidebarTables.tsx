@@ -25,12 +25,14 @@ import { setUIState, updateSchemaDirectly } from '@/store/slices/editorSlice';
 import { createTableThunk } from '@/store/thunks/editorThunks';
 
 import { SidebarTableNode } from './SidebarTableNode';
+import { getDefaultIdType } from '@/components/editor/nodes/DataTypeSelector';
 
 export function SidebarTables() {
     const dispatch = useAppDispatch();
     
     const nodes = useAppSelector(state => state.editor.schema.present.nodes);
     const tableQuery = useAppSelector(state => state.editor.ui.tableQuery);
+    const projectType = useAppSelector(state => state.editor.ui.projectType);
     const [activeId, setActiveId] = React.useState<string | null>(null);
 
     const sensors = useSensors(
@@ -72,7 +74,7 @@ export function SidebarTables() {
             fields: [
                 {
                     name: 'id',
-                    type: 'bigint',
+                    type: getDefaultIdType(projectType),
                     primary: true,
                     unique: false,
                     nullable: false,

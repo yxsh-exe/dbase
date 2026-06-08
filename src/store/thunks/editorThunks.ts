@@ -235,6 +235,9 @@ export const updateFieldThunk = createAsyncThunk(
             oldField.precision !== newField.precision ||
             oldField.scale !== newField.scale;
 
+        const oldIsForeign = oldField.foreign || (oldField.constraints?.some(c => c.type === 'foreign_key') ?? false);
+        const newIsForeign = newField.foreign || (newField.constraints?.some(c => c.type === 'foreign_key') ?? false);
+
         // 1. Update the target node itself
         updatedNodes = updatedNodes.map((node) => {
             if (node.id === payload.tableId) {
@@ -303,6 +306,16 @@ export const updateFieldThunk = createAsyncThunk(
                     });
                 });
             }
+        }
+
+        // 3. Remove relation edge if foreign key constraint was removed or referenced table changed
+        if (
+            (oldIsForeign && !newIsForeign) ||
+            (oldIsForeign && newIsForeign && oldField.referencedTable !== newField.referencedTable)
+        ) {
+            updatedEdges = updatedEdges.filter(
+                (e) => !(e.target === payload.tableId && (e.data as any)?.targetField === oldField.name)
+            );
         }
 
         dispatch(

@@ -10,9 +10,11 @@ import {
     ConnectionLineType,
     NodeChange,
     EdgeChange,
+    Edge,
     Connection,
     applyNodeChanges,
     applyEdgeChanges,
+    ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Key, Link as LinkIcon, Fingerprint, Hash } from 'lucide-react';
@@ -22,6 +24,9 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { updateSchemaDirectly, setUIState } from '@/store/slices/editorSlice';
 import { updateTableThunk, deleteTableThunk, updateFieldThunk, createRelationshipThunk, deleteRelationshipThunk } from '@/store/thunks/editorThunks';
 
+import { EditorHotkeys } from '@/components/editor/EditorHotkeys';
+import { ValidationDialog } from '@/components/editor/ValidationDialog';
+import { ImportSqlDialog } from '@/components/editor/ImportSqlDialog';
 import { TableNode } from '@/components/editor/nodes/TableNode';
 import RelationEdge from '@/components/editor/edges/RelationEdge';
 import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
@@ -40,6 +45,36 @@ export function EditorCanvas() {
     const nodes = useAppSelector(state => state.editor.schema.present.nodes);
     const edges = useAppSelector(state => state.editor.schema.present.edges);
     const validationErrors = useAppSelector(state => state.editor.ui.validationErrors);
+    const isValidationDialogOpen = useAppSelector(state => state.editor.ui.isValidationDialogOpen);
+
+    // Auto-cleanup invalid edges
+    React.useEffect(() => {
+        const invalidEdges = edges.filter(edge => {
+            const destTable = nodes.find(n => n.id === edge.target);
+            if (!destTable) return true;
+            
+            const targetFieldName = (edge.data as any)?.targetField;
+            if (!targetFieldName) return true;
+
+            const targetField = destTable.data.fields.find(f => f.name === targetFieldName);
+            if (!targetField) return true;
+            
+            const isForeign = targetField.foreign || (targetField.constraints?.some(c => c.type === 'foreign_key') ?? false);
+            if (!isForeign) return true;
+            
+            const sourceTable = nodes.find(n => n.id === edge.source);
+            if (!sourceTable) return true;
+
+            if (targetField.referencedTable !== sourceTable.data.name) return true;
+            
+            return false;
+        });
+
+        if (invalidEdges.length > 0) {
+            const validEdges = edges.filter(e => !invalidEdges.includes(e));
+            dispatch(updateSchemaDirectly({ edges: validEdges }));
+        }
+    }, [nodes, edges, dispatch]);
 
     // Callbacks to pass to nodes
     const handleUpdateTable = useCallback((tableId: string, updatedData: Partial<TableNodeData>) => {
@@ -127,6 +162,25 @@ export function EditorCanvas() {
         dispatch(updateSchemaDirectly({ edges: newEdges }));
     }, [dispatch, edges]);
 
+    const onEdgesDelete = useCallback((edgesToDelete: Edge[]) => {
+        edgesToDelete.forEach(edge => {
+            const targetTableId = edge.target;
+            const targetFieldName = (edge.data as any)?.targetField;
+            if (!targetTableId || !targetFieldName) return;
+
+            const targetNode = nodes.find(n => n.id === targetTableId);
+            if (!targetNode) return;
+
+            const fieldIndex = targetNode.data.fields.findIndex(f => f.name === targetFieldName);
+            if (fieldIndex === -1) return;
+
+            const field = targetNode.data.fields[fieldIndex];
+
+            dispatch(deleteRelationshipThunk({ edge, foreignKeyField: field, targetTableId }));
+        });
+        toast.success('Relationship and foreign key field deleted');
+    }, [dispatch, nodes]);
+
     const handleConnect = useCallback((connection: Connection) => {
         if (!connection.source || !connection.target) return;
         if (connection.source === connection.target) {
@@ -195,76 +249,85 @@ export function EditorCanvas() {
 
     return (
         <div className="flex-1 relative w-full h-full overflow-hidden">
-            <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center pointer-events-none">
-                <div className="flex items-center gap-5 px-6 py-2.5 rounded-full border border-zinc-800 bg-zinc-950 shadow-[0_8px_30px_rgb(0,0,0,0.4)]">
-                    <div className="flex items-center gap-2">
-                        <Key className="h-3 w-3 text-yellow-400 shrink-0" />
-                        <span className="text-[11px] text-zinc-300 font-medium">Primary Key</span>
-                    </div>
-                    <span className="text-zinc-700">·</span>
-                    <div className="flex items-center gap-2">
-                        <LinkIcon className="h-3 w-3 text-blue-400 shrink-0" />
-                        <span className="text-[11px] text-zinc-300 font-medium">Foreign Key</span>
-                    </div>
-                    <span className="text-zinc-700">·</span>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-zinc-400 border border-zinc-600 rounded px-1 leading-tight">N</span>
-                        <span className="text-[11px] text-zinc-300 font-medium">Nullable</span>
-                    </div>
-                    <span className="text-zinc-700">·</span>
-                    <div className="flex items-center gap-2">
-                        <Fingerprint className="h-3 w-3 text-purple-400 shrink-0" />
-                        <span className="text-[11px] text-zinc-300 font-medium">Unique</span>
-                    </div>
-                    <span className="text-zinc-700">·</span>
-                    <div className="flex items-center gap-2">
-                        <Hash className="h-3 w-3 text-green-400 shrink-0" />
-                        <span className="text-[11px] text-zinc-300 font-medium">Identity</span>
+            <ReactFlowProvider>
+                <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center pointer-events-none">
+                    <div className="flex items-center gap-5 px-6 py-2.5 rounded-full border border-zinc-800 bg-zinc-950 shadow-[0_8px_30px_rgb(0,0,0,0.4)]">
+                        <div className="flex items-center gap-2">
+                            <Key className="h-3 w-3 text-yellow-400 shrink-0" />
+                            <span className="text-[11px] text-zinc-300 font-medium">Primary Key</span>
+                        </div>
+                        <span className="text-zinc-700">·</span>
+                        <div className="flex items-center gap-2">
+                            <LinkIcon className="h-3 w-3 text-blue-400 shrink-0" />
+                            <span className="text-[11px] text-zinc-300 font-medium">Foreign Key</span>
+                        </div>
+                        <span className="text-zinc-700">·</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-zinc-400 border border-zinc-600 rounded px-1 leading-tight">N</span>
+                            <span className="text-[11px] text-zinc-300 font-medium">Nullable</span>
+                        </div>
+                        <span className="text-zinc-700">·</span>
+                        <div className="flex items-center gap-2">
+                            <Fingerprint className="h-3 w-3 text-purple-400 shrink-0" />
+                            <span className="text-[11px] text-zinc-300 font-medium">Unique</span>
+                        </div>
+                        <span className="text-zinc-700">·</span>
+                        <div className="flex items-center gap-2">
+                            <Hash className="h-3 w-3 text-green-400 shrink-0" />
+                            <span className="text-[11px] text-zinc-300 font-medium">Identity</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <ReactFlow
-                nodes={nodesWithCallbacks}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={handleConnect}
-                nodeTypes={nodeTypes as any}
-                edgeTypes={edgeTypes as any}
-                connectionLineType={ConnectionLineType.SmoothStep}
-                fitView
-                fitViewOptions={{ maxZoom: 1 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                className="bg-black"
-                minZoom={0.1}
-                maxZoom={2.5}
-                snapToGrid={false}
-                defaultEdgeOptions={{
-                    type: 'relation',
-                    style: { stroke: '#3f3f46', strokeWidth: 1.5, strokeDasharray: '5,5' },
-                    markerEnd: { type: MarkerType.ArrowClosed, color: '#52525b', width: 10, height: 10 },
-                }}
-                nodesDraggable={true}
-                nodesConnectable={true}
-                elementsSelectable={true}
-            >
-                <Background color="#2d2d2d" gap={24} size={2} />
-                <Controls
-                    position="top-right"
-                    showInteractive={false}
-                    className="!flex !flex-row !bg-zinc-950 !border !border-zinc-800 !rounded-lg !shadow-lg !mt-4 !mr-4 [&>button]:!bg-zinc-950 [&>button]:!border-zinc-800 [&>button]:!border-b-0 [&>button:not(:last-child)]:!border-r [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-900 [&>button:hover]:!text-white [&>button]:!w-8 [&>button]:!h-8"
+                
+                <ReactFlow
+                    nodes={nodesWithCallbacks}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onEdgesDelete={onEdgesDelete}
+                    onConnect={handleConnect}
+                    nodeTypes={nodeTypes as any}
+                    edgeTypes={edgeTypes as any}
+                    connectionLineType={ConnectionLineType.SmoothStep}
+                    fitView
+                    fitViewOptions={{ maxZoom: 1 }}
+                    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                    className="bg-black"
+                    minZoom={0.1}
+                    maxZoom={2.5}
+                    snapToGrid={false}
+                    defaultEdgeOptions={{
+                        type: 'relation',
+                        style: { stroke: '#3f3f46', strokeWidth: 1.5, strokeDasharray: '5,5' },
+                        markerEnd: { type: MarkerType.ArrowClosed, color: '#52525b', width: 10, height: 10 },
+                    }}
+                    nodesDraggable={true}
+                    nodesConnectable={true}
+                    elementsSelectable={true}
+                >
+                    <Background color="#2d2d2d" gap={24} size={2} />
+                    <Controls
+                        position="top-right"
+                        showInteractive={false}
+                        className="!flex !flex-row !bg-zinc-950 !border !border-zinc-800 !rounded-lg !shadow-lg !mt-4 !mr-4 [&>button]:!bg-zinc-950 [&>button]:!border-zinc-800 [&>button]:!border-b-0 [&>button:not(:last-child)]:!border-r [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-900 [&>button:hover]:!text-white [&>button]:!w-8 [&>button]:!h-8"
+                    />
+                    <MiniMap
+                        nodeColor="#1a1a1a"
+                        nodeStrokeColor="#3f3f46"
+                        nodeBorderRadius={4}
+                        maskColor="rgba(0, 0, 0, 0.7)"
+                        position="bottom-right"
+                        className="!bg-zinc-950 !border !border-zinc-800 !rounded-lg"
+                        style={{ width: 140, height: 90, bottom: 36, right: 12 }}
+                    />
+                </ReactFlow>
+
+                <ValidationDialog
+                    isOpen={isValidationDialogOpen}
+                    onClose={() => dispatch(setUIState({ isValidationDialogOpen: false }))}
                 />
-                <MiniMap
-                    nodeColor="#1a1a1a"
-                    nodeStrokeColor="#3f3f46"
-                    nodeBorderRadius={4}
-                    maskColor="rgba(0, 0, 0, 0.7)"
-                    position="bottom-right"
-                    className="!bg-zinc-950 !border !border-zinc-800 !rounded-lg"
-                    style={{ width: 140, height: 90, bottom: 36, right: 12 }}
-                />
-            </ReactFlow>
+                <ImportSqlDialog />
+            </ReactFlowProvider>
         </div>
     );
 }

@@ -176,7 +176,8 @@ export function generateSql(nodes: Node<TableNodeData>[], dialect: SqlDialect = 
       if (field.foreign && field.referencedTable) {
         const refTable = quoteIdent(field.referencedTable, dialect);
         const refField = quoteIdent(field.referencedField ?? 'id', dialect);
-        fkLines.push(`FOREIGN KEY (${qFieldName}) REFERENCES ${refTable}(${refField})`);
+        const constraintName = quoteIdent(`fk_${tableName}_${field.name}`, dialect);
+        fkLines.push(`CONSTRAINT ${constraintName} FOREIGN KEY (${qFieldName}) REFERENCES ${refTable}(${refField})`);
       }
     }
 
@@ -207,13 +208,23 @@ export function generateSql(nodes: Node<TableNodeData>[], dialect: SqlDialect = 
     columnLines.push(...fkLines);
     const createStmt = `CREATE TABLE ${qTableName} (\n  ${columnLines.join(',\n  ')}\n);`;
     statements.push(createStmt);
+  }
 
+  const indexStatements: string[] = [];
+  for (const node of nodes) {
+    const tableName = node.data.name;
+    const qTableName = quoteIdent(tableName, dialect);
+    
     if (node.data.indexes?.length) {
       for (const idx of node.data.indexes) {
         const columnsStr = idx.columns?.length ? idx.columns.map(c => quoteIdent(c, dialect)).join(', ') : '/* specify columns */';
-        statements.push(`CREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX ${quoteIdent(idx.name, dialect)} ON ${qTableName} (${columnsStr});`);
+        indexStatements.push(`CREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX ${quoteIdent(idx.name, dialect)} ON ${qTableName} (${columnsStr});`);
       }
     }
+  }
+
+  if (indexStatements.length > 0) {
+    statements.push(...indexStatements);
   }
 
   return statements.join('\n\n');
@@ -387,13 +398,43 @@ export function convertSchema(
   format: SchemaFormat,
   dialect: SqlDialect = 'postgresql'
 ): string {
+  // Topological sort based on foreign keys
+  const sortedNodes: Node<TableNodeData>[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const nodeMap = new Map(nodes.map(n => [n.data.name, n]));
+
+  function visit(tableName: string) {
+    if (visited.has(tableName)) return;
+    if (visiting.has(tableName)) return; // skip circular
+    visiting.add(tableName);
+    
+    const node = nodeMap.get(tableName);
+    if (node) {
+      for (const field of node.data.fields) {
+        if (field.foreign && field.referencedTable) {
+          visit(field.referencedTable);
+        }
+      }
+      sortedNodes.push(node);
+    }
+    visiting.delete(tableName);
+    visited.add(tableName);
+  }
+
+  for (const node of nodes) {
+    visit(node.data.name);
+  }
+  
+  const orderedNodes = sortedNodes;
+
   switch (format) {
     case 'sql':
-      return generateSql(nodes, dialect);
+      return generateSql(orderedNodes, dialect);
     case 'prisma':
-      return generatePrisma(nodes);
+      return generatePrisma(orderedNodes);
     case 'drizzle':
-      return generateDrizzle(nodes);
+      return generateDrizzle(orderedNodes);
     default:
       return '';
   }

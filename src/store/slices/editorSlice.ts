@@ -21,6 +21,7 @@ export interface EditorUIState {
     isEditingTitle: boolean;
     isValidationDialogOpen: boolean;
     isShortcutsModalOpen: boolean;
+    isImportDialogOpen: boolean;
     validationErrors: any[];
 }
 
@@ -52,6 +53,7 @@ const initialUIState: EditorUIState = {
     isEditingTitle: false,
     isValidationDialogOpen: false,
     isShortcutsModalOpen: false,
+    isImportDialogOpen: false,
     validationErrors: [],
 };
 

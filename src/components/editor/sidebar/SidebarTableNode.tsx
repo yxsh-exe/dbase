@@ -2,15 +2,16 @@
 
 import React, { useState } from 'react';
 import { ChevronRight, GripVertical, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
-import { useSortable } from '@dnd-kit/sortable';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toggleTableExpanded as toggleTable, toggleSectionExpanded as toggleSection } from '@/store/slices/editorSlice';
 import { updateTableThunk, deleteTableThunk, updateFieldThunk } from '@/store/thunks/editorThunks';
 import { Field, TableNodeData } from '@/components/editor/nodes/types/Field';
 import { Key, Link as LinkIcon, Fingerprint, Hash } from 'lucide-react';
 import { ColorPicker } from '@/components/ColorPicker';
-import { DataTypeSelector } from '@/components/editor/nodes/DataTypeSelector';
+import { DataTypeSelector, getDefaultFieldType } from '@/components/editor/nodes/DataTypeSelector';
 
 interface SidebarTableNodeProps {
     tableId: string;
@@ -18,6 +19,70 @@ interface SidebarTableNodeProps {
     isSelected: boolean;
     onSelect: () => void;
     isOverlay?: boolean;
+}
+
+function SortableField({
+    field,
+    isEditing,
+    setEditingFieldName,
+    getFieldConstraintIcons,
+    getTypeColor,
+    formatFieldType,
+    onDelete,
+    renderEditForm,
+}: any) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.name });
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    if (isEditing) {
+        return (
+            <div ref={setNodeRef} style={style} className="z-10 relative">
+                {renderEditForm()}
+            </div>
+        );
+    }
+
+    return (
+        <div 
+            ref={setNodeRef} 
+            style={style}
+            onClick={() => setEditingFieldName(field.name)}
+            className="group/field flex items-center justify-between text-[11px] py-1.5 px-2 rounded bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors cursor-pointer mb-1 shadow-sm"
+        >
+            <div className="flex items-center gap-2 min-w-0">
+                <div 
+                    {...attributes} 
+                    {...listeners}
+                    onClick={e => e.stopPropagation()}
+                    className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-300 transition-colors p-0.5 rounded -ml-1"
+                >
+                    <GripVertical className="h-3.5 w-3.5" />
+                </div>
+                <div className="flex items-center gap-1 w-[24px] shrink-0">
+                    {getFieldConstraintIcons(field)}
+                </div>
+                <span className="text-zinc-300 font-medium truncate group-hover/field:text-white transition-colors">{field.name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className={`${getTypeColor(field.type)} text-[10px] truncate`} style={{ fontFamily: 'var(--font-geist-mono, "Geist Mono", monospace)' }}>
+                    {formatFieldType(field)}
+                </span>
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete();
+                    }}
+                    className="opacity-0 group-hover/field:opacity-100 text-zinc-500 hover:text-red-400 transition-opacity"
+                >
+                    <Trash2 className="h-3 w-3" />
+                </button>
+            </div>
+        </div>
+    );
 }
 
 export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isOverlay }: SidebarTableNodeProps) {
@@ -32,7 +97,26 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
 
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editTitleValue, setEditTitleValue] = useState(tableData.name);
-    const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null);
+    const [editingFieldName, setEditingFieldName] = useState<string | null>(null);
+
+    const fieldSensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor)
+    );
+
+    const handleFieldDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = tableData.fields.findIndex((f) => f.name === active.id);
+            const newIndex = tableData.fields.findIndex((f) => f.name === over.id);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                const newFields = [...tableData.fields];
+                const [movedField] = newFields.splice(oldIndex, 1);
+                newFields.splice(newIndex, 0, movedField);
+                dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+            }
+        }
+    };
 
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tableId });
     const style = {
@@ -71,10 +155,22 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
 
     const formatFieldType = (field: Field) => {
         let typeStr = field.type;
-        if (field.length) typeStr += `(${field.length})`;
-        else if (field.precision && field.scale) typeStr += `(${field.precision},${field.scale})`;
-        else if (field.precision) typeStr += `(${field.precision})`;
-        return typeStr;
+        const t = typeStr.toLowerCase();
+        const needsLength = ['varchar', 'char', 'varchar2', 'nvarchar', 'nvarchar2', 'varbinary', 'binary', 'nchar'].includes(t);
+        const needsPrecisionScale = ['numeric', 'decimal', 'number'].includes(t);
+
+        if (needsLength && field.length) {
+            typeStr += `(${field.length})`;
+        } else if (needsPrecisionScale && field.precision !== undefined) {
+            if (field.scale !== undefined) {
+                typeStr += `(${field.precision},${field.scale})`;
+            } else {
+                typeStr += `(${field.precision})`;
+            }
+        }
+
+        typeStr += (field.nullable === false && !field.primary) ? '?' : '';
+        return typeStr.toUpperCase();
     };
 
     const getTypeColor = (type: string): string => {
@@ -197,119 +293,138 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
                                 </button>
                             </div>
                             {isFieldsExpanded && (
-                                <div className="space-y-0.5 pl-2 pr-2">
-                                    {tableData.fields.map((field, idx) => {
-                                        if (editingFieldIndex === idx) {
-                                            return (
-                                                <div key={idx} className="flex flex-col gap-1.5 py-1.5 px-2 rounded bg-zinc-800/80 mb-1 border border-zinc-700">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <input 
-                                                            autoFocus
-                                                            className="bg-zinc-950 text-white text-xs px-1.5 py-1 rounded border border-zinc-700 w-full focus:border-zinc-500 outline-none"
-                                                            value={field.name}
-                                                            onChange={e => {
-                                                                const newFields = [...tableData.fields];
-                                                                newFields[idx] = { ...newFields[idx], name: e.target.value };
-                                                                dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                            }}
-                                                            onKeyDown={e => {
-                                                                if (e.key === 'Enter' || e.key === 'Escape') setEditingFieldIndex(null);
-                                                            }}
-                                                        />
-                                                        <button onClick={() => setEditingFieldIndex(null)} className="text-zinc-400 hover:text-white p-1">
-                                                            <Check className="h-3.5 w-3.5 text-green-400" />
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-2 mt-1">
-                                                        <DataTypeSelector 
-                                                            value={field.type} 
-                                                            onChange={(type, length, precision, scale) => {
-                                                                const newFields = [...tableData.fields];
-                                                                newFields[idx] = { ...newFields[idx], type, length, precision, scale };
-                                                                dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                            }}
-                                                            projectType={projectType}
-                                                            compact={true}
-                                                            hideSize={false}
-                                                            length={field.length}
-                                                            precision={field.precision}
-                                                            scale={field.scale}
-                                                        />
-                                                        <div className="flex items-center gap-1">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const newFields = [...tableData.fields];
-                                                                    const newPrimary = !newFields[idx].primary;
-                                                                    newFields[idx] = { ...newFields[idx], primary: newPrimary, unique: newPrimary ? true : newFields[idx].unique };
-                                                                    dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                                }}
-                                                                className={`p-1 rounded flex items-center justify-center transition-colors border ${field.primary ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}
-                                                                title="Primary Key"
-                                                            >
-                                                                <Key className="w-3.5 h-3.5" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const newFields = [...tableData.fields];
-                                                                    newFields[idx] = { ...newFields[idx], nullable: !newFields[idx].nullable };
-                                                                    dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                                }}
-                                                                className={`p-1 rounded flex items-center justify-center transition-colors border ${!field.nullable ? 'bg-blue-400/20 text-blue-400 border-blue-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}
-                                                                title="Not Null"
-                                                            >
-                                                                <span className="text-[10px] font-bold px-1 leading-tight font-mono">N</span>
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    if (field.primary) return;
-                                                                    const newFields = [...tableData.fields];
-                                                                    newFields[idx] = { ...newFields[idx], unique: !newFields[idx].unique };
-                                                                    dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                                }}
-                                                                disabled={field.primary}
-                                                                className={`p-1 rounded flex items-center justify-center transition-colors border ${field.unique || field.primary ? 'bg-purple-400/20 text-purple-400 border-purple-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'} ${field.primary ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                title="Unique"
-                                                            >
-                                                                <Fingerprint className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
+                                <DndContext sensors={fieldSensors} collisionDetection={closestCenter} onDragEnd={handleFieldDragEnd}>
+                                    <SortableContext items={tableData.fields.map(f => f.name)} strategy={verticalListSortingStrategy}>
+                                        <div className="space-y-0.5 pl-2 pr-2">
+                                            {tableData.fields.map((field, idx) => (
+                                                <SortableField
+                                                    key={field.name}
+                                                    field={field}
+                                                    isEditing={editingFieldName === field.name}
+                                                    setEditingFieldName={setEditingFieldName}
+                                                    getFieldConstraintIcons={getFieldConstraintIcons}
+                                                    getTypeColor={getTypeColor}
+                                                    formatFieldType={formatFieldType}
+                                                    onDelete={() => {
+                                                        const newFields = [...tableData.fields];
+                                                        newFields.splice(idx, 1);
+                                                        dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                    }}
+                                                    renderEditForm={() => (
+                                                        <div className="flex flex-col gap-1.5 py-1.5 px-2 rounded bg-zinc-800/80 mb-1 border border-zinc-700">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <input 
+                                                                    autoFocus
+                                                                    className="bg-zinc-950 text-white text-xs px-1.5 py-1 rounded border border-zinc-700 w-full focus:border-zinc-500 outline-none"
+                                                                    value={field.name}
+                                                                    onChange={e => {
+                                                                        const newFields = [...tableData.fields];
+                                                                        newFields[idx] = { ...newFields[idx], name: e.target.value };
+                                                                        dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                                    }}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter' || e.key === 'Escape') setEditingFieldName(null);
+                                                                    }}
+                                                                />
+                                                                <button onClick={() => setEditingFieldName(null)} className="text-zinc-400 hover:text-white p-1">
+                                                                    <Check className="h-3.5 w-3.5 text-green-400" />
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-2 mt-1">
+                                                                <DataTypeSelector 
+                                                                    value={field.type} 
+                                                                    onChange={(type, length, precision, scale) => {
+                                                                        const newFields = [...tableData.fields];
+                                                                        newFields[idx] = { ...newFields[idx], type, length, precision, scale };
+                                                                        dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                                    }}
+                                                                    projectType={projectType}
+                                                                    compact={true}
+                                                                    hideSize={false}
+                                                                    length={field.length}
+                                                                    precision={field.precision}
+                                                                    scale={field.scale}
+                                                                />
+                                                                <div className="flex items-center gap-1">
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const newFields = [...tableData.fields];
+                                                                            const isPrimary = field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false);
+                                                                            const newPrimary = !isPrimary;
+                                                                            let newConstraints = [...(newFields[idx].constraints || [])];
+                                                                            if (newPrimary) {
+                                                                                if (!newConstraints.some(c => c.type === 'primary_key')) newConstraints.push({ type: 'primary_key' });
+                                                                            } else {
+                                                                                newConstraints = newConstraints.filter(c => c.type !== 'primary_key');
+                                                                            }
 
-                                        return (
-                                            <div 
-                                                key={idx} 
-                                                onClick={() => setEditingFieldIndex(idx)}
-                                                className="group/field flex items-center justify-between text-[11px] py-1 px-2 rounded hover:bg-zinc-800/50 transition-colors cursor-text"
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <div className="flex items-center gap-1 w-[24px] shrink-0">
-                                                        {getFieldConstraintIcons(field)}
-                                                    </div>
-                                                    <span className="text-zinc-300 font-medium truncate group-hover/field:text-white transition-colors">{field.name}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`${getTypeColor(field.type)} text-[10px] truncate`} style={{ fontFamily: 'var(--font-geist-mono, "Geist Mono", monospace)' }}>
-                                                        {formatFieldType(field)}
-                                                    </span>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const newFields = [...tableData.fields];
-                                                            newFields.splice(idx, 1);
-                                                            dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
-                                                        }}
-                                                        className="opacity-0 group-hover/field:opacity-100 text-zinc-500 hover:text-red-400 transition-opacity"
-                                                    >
-                                                        <Trash2 className="h-3 w-3" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                                            newFields[idx] = { 
+                                                                                ...newFields[idx], 
+                                                                                primary: newPrimary, 
+                                                                                unique: newPrimary ? true : newFields[idx].unique,
+                                                                                nullable: newPrimary ? false : newFields[idx].nullable,
+                                                                                constraints: newConstraints
+                                                                            };
+                                                                            dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                                        }}
+                                                                        className={`p-1 rounded flex items-center justify-center transition-colors border ${(field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)) ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'}`}
+                                                                        title="Primary Key"
+                                                                    >
+                                                                        <Key className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const isPrimary = field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false);
+                                                                            if (isPrimary) return;
+                                                                            const newFields = [...tableData.fields];
+                                                                            const isNotNull = !field.nullable || (field.constraints?.some(c => c.type === 'not_null') ?? false);
+                                                                            const newNullable = isNotNull; // toggling not null means flipping nullable
+                                                                            let newConstraints = [...(newFields[idx].constraints || [])];
+                                                                            if (!newNullable) {
+                                                                                if (!newConstraints.some(c => c.type === 'not_null')) newConstraints.push({ type: 'not_null' });
+                                                                            } else {
+                                                                                newConstraints = newConstraints.filter(c => c.type !== 'not_null');
+                                                                            }
+                                                                            newFields[idx] = { ...newFields[idx], nullable: newNullable, constraints: newConstraints };
+                                                                            dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                                        }}
+                                                                        disabled={field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)}
+                                                                        className={`p-1 rounded flex items-center justify-center transition-colors border ${(!field.nullable || (field.constraints?.some(c => c.type === 'not_null') ?? false) || field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)) ? 'bg-blue-400/20 text-blue-400 border-blue-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'} ${(field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                        title="Not Null"
+                                                                    >
+                                                                        <span className="text-[10px] font-bold px-1 leading-tight font-mono">N</span>
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            const isPrimary = field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false);
+                                                                            if (isPrimary) return;
+                                                                            const newFields = [...tableData.fields];
+                                                                            const isUnique = field.unique || (field.constraints?.some(c => c.type === 'unique') ?? false);
+                                                                            const newUnique = !isUnique;
+                                                                            let newConstraints = [...(newFields[idx].constraints || [])];
+                                                                            if (newUnique) {
+                                                                                if (!newConstraints.some(c => c.type === 'unique')) newConstraints.push({ type: 'unique' });
+                                                                            } else {
+                                                                                newConstraints = newConstraints.filter(c => c.type !== 'unique');
+                                                                            }
+                                                                            newFields[idx] = { ...newFields[idx], unique: newUnique, constraints: newConstraints };
+                                                                            dispatch(updateTableThunk({ tableId, newData: { fields: newFields } }));
+                                                                        }}
+                                                                        disabled={field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)}
+                                                                        className={`p-1 rounded flex items-center justify-center transition-colors border ${(field.unique || (field.constraints?.some(c => c.type === 'unique') ?? false) || field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)) ? 'bg-purple-400/20 text-purple-400 border-purple-400/50' : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300'} ${(field.primary || (field.constraints?.some(c => c.type === 'primary_key') ?? false)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                        title="Unique"
+                                                                    >
+                                                                        <Fingerprint className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                />
+                                            ))}
+                                        </div>
+                                    </SortableContext>
+                                </DndContext>
                             )}
                         </div>
 
@@ -336,7 +451,7 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
                             {isIndexesExpanded && (
                                 <div className="space-y-1 pl-2 pr-2">
                                     {(tableData.indexes || []).map((idx, i) => (
-                                        <div key={i} className="flex items-center gap-2 mb-1">
+                                        <div key={i} className="flex items-center gap-2 mb-1 py-1.5 px-2 rounded bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors">
                                             <input 
                                                 className="bg-zinc-950 text-white text-[10px] px-1.5 py-1 rounded border border-zinc-800 flex-1 focus:border-zinc-500 outline-none min-w-0"
                                                 value={idx.name}
@@ -398,37 +513,75 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
                             </div>
                             {isConstraintsExpanded && (
                                 <div className="space-y-1 pl-2 pr-2">
-                                    {(tableData.checkConstraints || []).map((chk, i) => (
-                                        <div key={i} className="flex items-center gap-2">
-                                            <input 
-                                                className="bg-zinc-950 text-white text-[10px] px-1.5 py-1 rounded border border-zinc-800 w-1/3 focus:border-zinc-500 outline-none"
-                                                value={chk.name}
-                                                placeholder="Name"
-                                                onChange={e => {
+                                    {(tableData.checkConstraints || []).map((chk, i) => {
+                                        const conditionStr = chk.condition || '';
+                                        const match = conditionStr.match(/^([a-zA-Z0-9_]+)\s*(>=|<=|!=|=|>|<|LIKE|IN|IS|IS NOT)\s*(.*)$/i);
+                                        const parsedField = match ? match[1] : '';
+                                        const parsedOp = match ? match[2].toUpperCase() : '=';
+                                        const parsedVal = match ? match[3] : conditionStr;
+
+                                        const updateCondition = (f: string, o: string, v: string) => {
+                                            const newChecks = [...(tableData.checkConstraints || [])];
+                                            const newCondition = f ? `${f} ${o} ${v}` : v;
+                                            newChecks[i] = { ...newChecks[i], condition: newCondition.trim() };
+                                            dispatch(updateTableThunk({ tableId, newData: { checkConstraints: newChecks } }));
+                                        };
+
+                                        return (
+                                        <div key={i} className="flex flex-col gap-1.5 mb-1 p-2 rounded bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <input 
+                                                    className="bg-zinc-950 text-white text-[10px] px-1.5 py-1 rounded border border-zinc-800 flex-1 focus:border-zinc-500 outline-none min-w-0"
+                                                    value={chk.name}
+                                                    placeholder="Constraint Name"
+                                                    onChange={e => {
+                                                        const newChecks = [...(tableData.checkConstraints || [])];
+                                                        newChecks[i] = { ...newChecks[i], name: e.target.value };
+                                                        dispatch(updateTableThunk({ tableId, newData: { checkConstraints: newChecks } }));
+                                                    }}
+                                                />
+                                                <button onClick={() => {
                                                     const newChecks = [...(tableData.checkConstraints || [])];
-                                                    newChecks[i] = { ...newChecks[i], name: e.target.value };
+                                                    newChecks.splice(i, 1);
                                                     dispatch(updateTableThunk({ tableId, newData: { checkConstraints: newChecks } }));
-                                                }}
-                                            />
-                                            <input 
-                                                className="bg-zinc-950 text-white text-[10px] px-1.5 py-1 rounded border border-zinc-800 flex-1 focus:border-zinc-500 outline-none"
-                                                value={chk.condition}
-                                                placeholder="Condition (e.g. age > 18)"
-                                                onChange={e => {
-                                                    const newChecks = [...(tableData.checkConstraints || [])];
-                                                    newChecks[i] = { ...newChecks[i], condition: e.target.value };
-                                                    dispatch(updateTableThunk({ tableId, newData: { checkConstraints: newChecks } }));
-                                                }}
-                                            />
-                                            <button onClick={() => {
-                                                const newChecks = [...(tableData.checkConstraints || [])];
-                                                newChecks.splice(i, 1);
-                                                dispatch(updateTableThunk({ tableId, newData: { checkConstraints: newChecks } }));
-                                            }} className="text-zinc-500 hover:text-red-400">
-                                                <Trash2 className="h-3 w-3" />
-                                            </button>
+                                                }} className="text-zinc-500 hover:text-red-400 p-1 shrink-0">
+                                                    <Trash2 className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <select
+                                                    className="bg-zinc-950 text-white text-[10px] px-1 py-1 rounded border border-zinc-800 focus:border-zinc-500 outline-none cursor-pointer flex-1 min-w-0"
+                                                    value={parsedField}
+                                                    onChange={e => updateCondition(e.target.value, parsedOp, parsedVal)}
+                                                >
+                                                    <option value="" disabled>Field</option>
+                                                    {tableData.fields.map(f => (
+                                                        <option key={f.name} value={f.name}>{f.name}</option>
+                                                    ))}
+                                                </select>
+                                                <select
+                                                    className="bg-zinc-950 text-white text-[10px] px-0.5 py-1 rounded border border-zinc-800 focus:border-zinc-500 outline-none cursor-pointer w-[44px] text-center shrink-0"
+                                                    value={parsedOp}
+                                                    onChange={e => updateCondition(parsedField, e.target.value, parsedVal)}
+                                                >
+                                                    <option value="=">=</option>
+                                                    <option value="!=">≠</option>
+                                                    <option value=">">&gt;</option>
+                                                    <option value="<">&lt;</option>
+                                                    <option value=">=">≥</option>
+                                                    <option value="<=">≤</option>
+                                                    <option value="LIKE">LIKE</option>
+                                                    <option value="IN">IN</option>
+                                                </select>
+                                                <input 
+                                                    className="bg-zinc-950 text-white text-[10px] px-1.5 py-1 rounded border border-zinc-800 flex-1 focus:border-zinc-500 outline-none min-w-0"
+                                                    value={parsedVal}
+                                                    placeholder="Value"
+                                                    onChange={e => updateCondition(parsedField, parsedOp, e.target.value)}
+                                                />
+                                            </div>
                                         </div>
-                                    ))}
+                                    )})}
                                     {(!tableData.checkConstraints || tableData.checkConstraints.length === 0) && (
                                         <div className="pl-6 py-1 text-[11px] text-zinc-500">No constraints defined</div>
                                     )}
@@ -478,7 +631,7 @@ export function SidebarTableNode({ tableId, tableData, isSelected, onSelect, isO
                             </button>
                             <button 
                                 onClick={() => {
-                                    const newField: Field = { name: `field_${tableData.fields.length + 1}`, type: 'varchar', length: 255, primary: false, unique: false, nullable: true, foreign: false, constraints: [] };
+                                    const newField: Field = { name: `field_${tableData.fields.length + 1}`, type: getDefaultFieldType(projectType), length: 255, primary: false, unique: false, nullable: true, foreign: false, constraints: [] };
                                     dispatch(updateTableThunk({ tableId, newData: { fields: [...tableData.fields, newField] } }));
                                     if (!isFieldsExpanded) dispatch(toggleSection({ tableId, section: 'fields' }));
                                 }}

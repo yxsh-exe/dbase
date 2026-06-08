@@ -37,6 +37,30 @@ export const getDbTypes = (projectType?: string | null): Record<string, readonly
   }
 };
 
+export const getDefaultIdType = (projectType?: string | null): string => {
+  switch (projectType) {
+    case 'SQL Server': return 'UNIQUEIDENTIFIER';
+    case 'MySQL': return 'varchar';
+    case 'SQLite': return 'text';
+    case 'Oracle': return 'varchar2';
+    case 'MariaDB': return 'uuid';
+    case 'PostgreSQL':
+    default: return 'uuid';
+  }
+};
+
+export const getDefaultFieldType = (projectType?: string | null): string => {
+  switch (projectType) {
+    case 'SQL Server': return 'VARCHAR';
+    case 'Oracle': return 'varchar2';
+    case 'SQLite': return 'text';
+    case 'MySQL':
+    case 'MariaDB':
+    case 'PostgreSQL':
+    default: return 'varchar';
+  }
+};
+
 interface DataTypeSelectorProps {
   value: string;
   onChange: (type: string, length?: number, precision?: number, scale?: number) => void;
@@ -92,10 +116,14 @@ export function DataTypeSelector({
     onChange(newType, lengthValue, precisionValue, scaleValue);
   };
 
-  const handleParameterChange = () => {
-    const lengthValue = typeLength ? parseInt(typeLength) : undefined;
-    const precisionValue = typePrecision ? parseInt(typePrecision) : undefined;
-    const scaleValue = typeScale ? parseInt(typeScale) : undefined;
+  const handleParameterChange = (overrideLength?: string, overridePrecision?: string, overrideScale?: string) => {
+    const l = overrideLength !== undefined ? overrideLength : typeLength;
+    const p = overridePrecision !== undefined ? overridePrecision : typePrecision;
+    const s = overrideScale !== undefined ? overrideScale : typeScale;
+
+    const lengthValue = l ? parseInt(l) : undefined;
+    const precisionValue = p ? parseInt(p) : undefined;
+    const scaleValue = s ? parseInt(s) : undefined;
 
     onChange(selectedType, lengthValue, precisionValue, scaleValue);
   };
@@ -138,7 +166,7 @@ export function DataTypeSelector({
                 value={typeLength}
                 onChange={(e) => {
                   setTypeLength(e.target.value);
-                  setTimeout(handleParameterChange, 100);
+                  handleParameterChange(e.target.value, undefined, undefined);
                 }}
                 placeholder="255"
                 className="w-12 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
@@ -151,7 +179,7 @@ export function DataTypeSelector({
                   value={typePrecision}
                   onChange={(e) => {
                     setTypePrecision(e.target.value);
-                    setTimeout(handleParameterChange, 100);
+                    handleParameterChange(undefined, e.target.value, undefined);
                   }}
                   placeholder="10"
                   className="w-10 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
@@ -162,7 +190,7 @@ export function DataTypeSelector({
                   value={typeScale}
                   onChange={(e) => {
                     setTypeScale(e.target.value);
-                    setTimeout(handleParameterChange, 100);
+                    handleParameterChange(undefined, undefined, e.target.value);
                   }}
                   placeholder="2"
                   className="w-10 h-6 px-1 text-[10px] border-zinc-600 bg-zinc-800 text-white [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
@@ -230,7 +258,7 @@ export function DataTypeSelector({
                 value={typeLength}
                 onChange={(e) => {
                   setTypeLength(e.target.value);
-                  handleParameterChange();
+                  handleParameterChange(e.target.value, undefined, undefined);
                 }}
                 placeholder="255"
                 className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
@@ -246,7 +274,7 @@ export function DataTypeSelector({
                   value={typePrecision}
                   onChange={(e) => {
                     setTypePrecision(e.target.value);
-                    handleParameterChange();
+                    handleParameterChange(undefined, e.target.value, undefined);
                   }}
                   placeholder="10"
                   className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
@@ -259,7 +287,7 @@ export function DataTypeSelector({
                   value={typeScale}
                   onChange={(e) => {
                     setTypeScale(e.target.value);
-                    handleParameterChange();
+                    handleParameterChange(undefined, undefined, e.target.value);
                   }}
                   placeholder="2"
                   className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 placeholder:text-zinc-400 focus:border-white rounded-none"
@@ -276,11 +304,15 @@ export function DataTypeSelector({
 // Utility to format type display with parameters
 export function formatDataType(type: string, length?: number, precision?: number, scale?: number): string {
   let typeStr = type;
-  if (length) {
+  const t = typeStr.toLowerCase();
+  const needsLength = ['varchar', 'char', 'varchar2', 'nvarchar', 'nvarchar2', 'varbinary', 'binary', 'nchar'].includes(t);
+  const needsPrecisionScale = ['numeric', 'decimal', 'number'].includes(t);
+
+  if (needsLength && length) {
     typeStr += `(${length})`;
-  } else if (precision && scale) {
+  } else if (needsPrecisionScale && precision && scale) {
     typeStr += `(${precision},${scale})`;
-  } else if (precision) {
+  } else if (needsPrecisionScale && precision) {
     typeStr += `(${precision})`;
   }
   return typeStr;

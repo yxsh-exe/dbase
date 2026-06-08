@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BadgeCheck, Download, Keyboard, Redo, Undo, ChevronLeft } from 'lucide-react';
+import { BadgeCheck, Download, Upload, Keyboard, Redo, Undo, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { MysqlLogo, PostgresLogo, SqliteLogo, MsSqlLogo } from '@/components/Logos';
@@ -130,6 +130,15 @@ export function EditorToolbar({ projectId, onValidateSchema, onExportSchema }: E
                     title="Validate schema"
                 >
                     <BadgeCheck className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Import */}
+                <button
+                    onClick={() => dispatch(setUIState({ isImportDialogOpen: true }))}
+                    className="rounded-md bg-zinc-900 text-zinc-400 p-1.5 border border-zinc-800 transition-transform hover:scale-[0.97] ease-[cubic-bezier(0.23,1,0.32,1)] duration-150"
+                    title="Import SQL Schema"
+                >
+                    <Upload className="h-3.5 w-3.5" />
                 </button>
 
                 {/* Export */}

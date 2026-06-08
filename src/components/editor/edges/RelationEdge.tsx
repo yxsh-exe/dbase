@@ -62,7 +62,8 @@ export default function RelationEdge({
               ...style,
               strokeWidth: 1.5,
               strokeDasharray: isDotted ? '5,5' : 'none',
-              stroke: '#94a3b8' // Using a slightly lighter stroke so it's visible, or keep '#3f3f46'
+              stroke: '#94a3b8', // Using a slightly lighter stroke so it's visible, or keep '#3f3f46'
+              animation: isDotted ? 'flow 0.5s linear infinite' : 'none'
           }} 
       />
       <EdgeLabelRenderer>

@@ -29,6 +29,7 @@ import { Field, ConstraintType } from './types/Field';
 import { ConstraintSelector, legacyFormatToConstraints, constraintsToLegacyFormat } from './ConstraintSelector';
 import { DataTypeSelector } from './DataTypeSelector';
 import { toast } from 'react-hot-toast';
+import { useAppSelector } from '@/store/hooks';
 
 type DefaultOption = { label: string; value: string };
 
@@ -158,6 +159,7 @@ export const FieldDialog = ({
     mode = 'add'
 }: FieldDialogProps) => {
     const [fieldName, setFieldName] = useState("");
+    const projectType = useAppSelector(state => state.editor.ui.projectType);
     const [selectedType, setSelectedType] = useState("text");
     const [length, setLength] = useState("");
     const [precision, setPrecision] = useState("");
@@ -338,6 +340,7 @@ export const FieldDialog = ({
                                         setPrecision(newPrecision?.toString() || '');
                                         setScale(newScale?.toString() || '');
                                     }}
+                                    projectType={projectType}
                                     compact
                                 />
                             </TabsContent>

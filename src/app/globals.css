@@ -299,3 +299,12 @@
 .react-flow__connection-line {
   stroke: #52525b !important;
 }
+
+@keyframes flow {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
